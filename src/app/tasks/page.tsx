@@ -16,6 +16,16 @@ type Task = {
   notes: string;
 };
 
+type FormState = {
+  title: string;
+  business_unit: string;
+  brand: string;
+  assigned_to: string;
+  priority: "low" | "medium" | "high" | "urgent";
+  deadline: string;
+  notes: string;
+};
+
 const dummy: Task[] = [
   { id: 1, title: "Desain banner promo Lebaran", business_unit: "NF", brand: "Iklan", assigned_to: "Rini", ai_agent: "AI Content Creator", status: "in_progress", priority: "high", deadline: "2026-05-24", notes: "Untuk TikTok dan IG" },
   { id: 2, title: "Follow up lead WA batch kemarin", business_unit: "NF", brand: "CS", assigned_to: "Sari", ai_agent: "AI CS & Lead Responder", status: "todo", priority: "urgent", deadline: "2026-05-22", notes: "50 lead belum dibalas" },
@@ -27,14 +37,14 @@ const dummy: Task[] = [
   { id: 8, title: "Analisa performa iklan Meta minggu ini", business_unit: "NF", brand: "Iklan", assigned_to: "Rini", ai_agent: "AI Ads Analyst", status: "review", priority: "high", deadline: "2026-05-22", notes: "CTR drop signifikan" },
 ];
 
-const statusConfig = {
+const statusConfig: Record<string, { label: string; cls: string }> = {
   todo:        { label: "To Do",       cls: "badge-blue" },
   in_progress: { label: "In Progress", cls: "badge-yellow" },
   review:      { label: "Review",      cls: "badge-purple" },
   done:        { label: "Selesai",     cls: "badge-green" },
 };
 
-const priorityConfig = {
+const priorityConfig: Record<string, { label: string; cls: string }> = {
   low:    { label: "Rendah", cls: "badge-gray" },
   medium: { label: "Sedang", cls: "badge-blue" },
   high:   { label: "Tinggi", cls: "badge-orange" },
@@ -70,20 +80,22 @@ const COLUMNS: { key: Task["status"]; label: string; color: string }[] = [
 
 const BU_OPTIONS = ["Semua", "F&B", "NF", "Personal", "General"];
 const BRAND_MAP: Record<string, string[]> = {
-  "F&B": ["Semua", "Buri Umah", "Kisamen", "Samtaro Express", "Produksi Pusat", "Gudang", "Finance", "HR"],
-  "NF":  ["Semua", "CS", "Iklan", "Marketplace", "Packing", "COD / Pengiriman", "Reseller / Affiliate", "Admin"],
-  "Personal": ["Semua"],
-  "General":  ["Semua"],
+  "F&B": ["Buri Umah", "Kisamen", "Samtaro Express", "Produksi Pusat", "Gudang", "Finance", "HR"],
+  "NF":  ["CS", "Iklan", "Marketplace", "Packing", "COD / Pengiriman", "Reseller / Affiliate", "Admin"],
+  "Personal": ["Personal"],
+  "General":  ["General"],
   "Semua":    ["Semua"],
+};
+
+const DEFAULT_FORM: FormState = {
+  title: "", business_unit: "NF", brand: "CS", assigned_to: "", priority: "medium", deadline: "", notes: "",
 };
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>(dummy);
   const [filterBU, setFilterBU] = useState("Semua");
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({
-    title: "", business_unit: "NF", brand: "CS", assigned_to: "", priority: "medium" as Task["priority"], deadline: "", notes: "",
-  });
+  const [form, setForm] = useState<FormState>(DEFAULT_FORM);
 
   const filtered = filterBU === "Semua" ? tasks : tasks.filter(t => t.business_unit === filterBU);
 
@@ -104,7 +116,7 @@ export default function TasksPage() {
     };
     setTasks([newTask, ...tasks]);
     setShowModal(false);
-    setForm({ title: "", business_unit: "NF", brand: "CS", assigned_to: "", priority: "medium", deadline: "", notes: "" });
+    setForm(DEFAULT_FORM);
   }
 
   function moveTask(id: number, newStatus: Task["status"]) {
@@ -112,6 +124,7 @@ export default function TasksPage() {
   }
 
   const colCounts = COLUMNS.map(c => filtered.filter(t => t.status === c.key).length);
+  const detectedAgent = detectAgent(form.title);
 
   return (
     <div className="flex">
@@ -153,7 +166,7 @@ export default function TasksPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           {COLUMNS.map((col) => (
             <div key={col.key} className="kanban-col">
-              <div className={`flex items-center justify-between mb-2 px-1`}>
+              <div className="flex items-center justify-between mb-2 px-1">
                 <h3 className="font-semibold text-slate-700 text-sm">{col.label}</h3>
                 <span className="text-xs text-slate-400 font-medium">{filtered.filter(t => t.status === col.key).length}</span>
               </div>
@@ -198,25 +211,26 @@ export default function TasksPage() {
               <div className="p-5 space-y-4">
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Judul Task *</label>
-                  <input className="input-field" placeholder="Contoh: Buat reels produk baru..." value={form.title}
-                    onChange={e => { setForm({...form, title: e.target.value, ai_agent: detectAgent(e.target.value)}); }} />
+                  <input className="input-field" placeholder="Contoh: Buat reels produk baru..."
+                    value={form.title}
+                    onChange={e => setForm({ ...form, title: e.target.value })} />
                   {form.title && (
-                    <p className="text-xs text-blue-600 mt-1">🤖 Auto-assign ke: <strong>{detectAgent(form.title)}</strong></p>
+                    <p className="text-xs text-blue-600 mt-1">🤖 Auto-assign ke: <strong>{detectedAgent}</strong></p>
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Business Unit</label>
                     <select className="select-field" value={form.business_unit}
-                      onChange={e => setForm({...form, business_unit: e.target.value, brand: "Semua"})}>
+                      onChange={e => setForm({ ...form, business_unit: e.target.value, brand: BRAND_MAP[e.target.value]?.[0] ?? "" })}>
                       {["F&B","NF","Personal","General"].map(bu => <option key={bu}>{bu}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Brand / Divisi</label>
                     <select className="select-field" value={form.brand}
-                      onChange={e => setForm({...form, brand: e.target.value})}>
-                      {(BRAND_MAP[form.business_unit] ?? ["Semua"]).filter(b => b !== "Semua").map(b => <option key={b}>{b}</option>)}
+                      onChange={e => setForm({ ...form, brand: e.target.value })}>
+                      {(BRAND_MAP[form.business_unit] ?? []).map(b => <option key={b}>{b}</option>)}
                     </select>
                   </div>
                 </div>
@@ -224,12 +238,12 @@ export default function TasksPage() {
                   <div>
                     <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">PIC / Assigned To</label>
                     <input className="input-field" placeholder="Nama karyawan" value={form.assigned_to}
-                      onChange={e => setForm({...form, assigned_to: e.target.value})} />
+                      onChange={e => setForm({ ...form, assigned_to: e.target.value })} />
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Prioritas</label>
                     <select className="select-field" value={form.priority}
-                      onChange={e => setForm({...form, priority: e.target.value as Task["priority"]})}>
+                      onChange={e => setForm({ ...form, priority: e.target.value as FormState["priority"] })}>
                       <option value="low">Rendah</option>
                       <option value="medium">Sedang</option>
                       <option value="high">Tinggi</option>
@@ -240,12 +254,12 @@ export default function TasksPage() {
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Deadline</label>
                   <input type="date" className="input-field" value={form.deadline}
-                    onChange={e => setForm({...form, deadline: e.target.value})} />
+                    onChange={e => setForm({ ...form, deadline: e.target.value })} />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Catatan</label>
                   <textarea className="input-field" rows={2} placeholder="Catatan tambahan..." value={form.notes}
-                    onChange={e => setForm({...form, notes: e.target.value})} />
+                    onChange={e => setForm({ ...form, notes: e.target.value })} />
                 </div>
               </div>
               <div className="p-5 border-t border-slate-100 flex justify-end gap-3">
