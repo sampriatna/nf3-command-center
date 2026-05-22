@@ -10,7 +10,9 @@ const nav = [
   { href: "/ads", icon: "📢", label: "Ads Center" },
   { href: "/leads", icon: "👥", label: "CS & Lead" },
   { href: "/products", icon: "📦", label: "Produk & Stok" },
+  { href: "/finance", icon: "💰", label: "Finance" },
   { href: "/documents", icon: "📋", label: "Dokumen SOP" },
+  { href: "/ai-agents", icon: "🤖", label: "AI Agents" },
   { href: "/settings", icon: "⚙️", label: "Settings" },
 ];
 
@@ -23,7 +25,7 @@ export default function Sidebar() {
         <h1 className="text-white font-bold text-lg">NF3 Command Center</h1>
         <p className="text-gray-400 text-xs mt-1">Operational Dashboard</p>
       </div>
-      <nav className="flex-1 p-3 space-y-1">
+      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {nav.map((item) => (
           <Link
             key={item.href}
