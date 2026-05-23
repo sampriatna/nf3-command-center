@@ -3,28 +3,24 @@
 @tailwind utilities;
 
 @layer base {
-  :root { --sidebar-width: 240px; }
-  body { font-family: sans-serif; background-color: #f8fafc; }
+  :root {
+    --sidebar-width: 240px;
+  }
+  body {
+    font-family: sans-serif;
+    background-color: #f8fafc;
+  }
 }
 
 @layer components {
   .sidebar {
-    background-color: #0f172a;
-    color: white;
+    @apply bg-slate-900 text-white fixed left-0 top-0 flex flex-col z-40 overflow-y-auto;
+    width: 240px;
     height: 100vh;
-    position: fixed;
-    left: 0;
-    top: 0;
-    width: var(--sidebar-width);
-    display: flex;
-    flex-direction: column;
-    z-index: 40;
   }
   .main-content {
-    margin-left: var(--sidebar-width);
-    min-height: 100vh;
-    background-color: #f8fafc;
-    padding: 1.5rem;
+    @apply min-h-screen bg-slate-50 p-6;
+    margin-left: 240px;
   }
   .kpi-card {
     @apply bg-white rounded-xl shadow-sm border border-slate-100 p-5;
@@ -32,8 +28,8 @@
   .nav-item {
     @apply flex items-center gap-3 px-4 py-2.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all text-sm font-medium cursor-pointer;
   }
-  .nav-item.active {
-    @apply text-white bg-blue-600;
+  .nav-item-active {
+    @apply flex items-center gap-3 px-4 py-2.5 text-white bg-blue-600 rounded-lg text-sm font-medium cursor-pointer;
   }
   .badge-red {
     @apply text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700;
@@ -81,8 +77,7 @@
     @apply border-b border-slate-50 hover:bg-slate-50 transition-colors;
   }
   .kanban-col {
-    @apply bg-slate-50 rounded-xl p-3 flex flex-col gap-2;
-    min-height: 16rem;
+    @apply bg-slate-50 rounded-xl p-3 flex flex-col gap-2 min-h-64;
   }
   .kanban-card {
     @apply bg-white rounded-lg p-3 shadow-sm border border-slate-100 cursor-pointer hover:shadow-md transition-shadow;
