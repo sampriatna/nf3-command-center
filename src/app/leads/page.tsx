@@ -1,175 +1,274 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "@/components/layout/Sidebar";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 type Lead = {
-  id: number;
+  id: string;
   name: string;
-  phone: string;
+  source?: string;
+  status: "new" | "contacted" | "qualified" | "converted" | "lost";
+  phone?: string;
+  notes?: string;
+  created_at?: string;
+};
+
+type FormState = {
+  name: string;
   source: string;
-  product: string;
-  status: "new" | "follow_up" | "closing" | "lost";
-  assigned_cs: string;
+  status: "new" | "contacted" | "qualified" | "converted" | "lost";
+  phone: string;
   notes: string;
-  created_at: string;
 };
 
-const dummy: Lead[] = [
-  { id: 1, name: "Budi Santoso", phone: "08123456789", source: "TikTok Ads", product: "Nusa Rod Premium", status: "follow_up", assigned_cs: "Sari", notes: "Minta katalog, tanya ongkir Surabaya", created_at: "2026-05-22" },
-  { id: 2, name: "Rina Melati", phone: "08234567890", source: "Instagram", product: "Nusa Rod Starter", status: "closing", assigned_cs: "Dewi", notes: "Siap order, minta invoice", created_at: "2026-05-22" },
-  { id: 3, name: "Ahmad Fauzi", phone: "08345678901", source: "Shopee", product: "Umpan Premium Pack", status: "new", assigned_cs: "Sari", notes: "", created_at: "2026-05-22" },
-  { id: 4, name: "Siti Rahayu", phone: "08456789012", source: "WhatsApp Blast", product: "Nusa Rod Premium", status: "lost", assigned_cs: "Dewi", notes: "Budget tidak cukup", created_at: "2026-05-21" },
-  { id: 5, name: "Hendra Wijaya", phone: "08567890123", source: "TikTok Ads", product: "Combo Pack NF", status: "follow_up", assigned_cs: "Sari", notes: "Tanya harga grosir", created_at: "2026-05-21" },
-  { id: 6, name: "Lia Putri", phone: "08678901234", source: "Meta Ads", product: "Nusa Rod Medium", status: "closing", assigned_cs: "Dewi", notes: "Mau pesan 3 pcs", created_at: "2026-05-21" },
-  { id: 7, name: "Dodi Prasetyo", phone: "08789012345", source: "Referral", product: "Umpan Premium Pack", status: "new", assigned_cs: "Sari", notes: "Dari customer Pak Budi", created_at: "2026-05-20" },
-  { id: 8, name: "Nurul Hidayah", phone: "08890123456", source: "TikTok Ads", product: "Nusa Rod Starter", status: "follow_up", assigned_cs: "Dewi", notes: "Belum balas chat terakhir", created_at: "2026-05-20" },
-  { id: 9, name: "Reza Firmansyah", phone: "08901234567", source: "Meta Ads", product: "Nusa Rod Premium", status: "closing", assigned_cs: "Sari", notes: "Transfer DP sudah masuk", created_at: "2026-05-19" },
-  { id: 10, name: "Yuni Astuti", phone: "08012345678", source: "Instagram", product: "Combo Pack NF", status: "lost", assigned_cs: "Dewi", notes: "Pilih produk lain", created_at: "2026-05-19" },
-];
-
-const statusConfig: Record<string, { label: string; cls: string }> = {
-  new:       { label: "Baru",       cls: "badge-blue" },
-  follow_up: { label: "Follow Up",  cls: "badge-yellow" },
-  closing:   { label: "Closing",    cls: "badge-green" },
-  lost:      { label: "Lost",       cls: "badge-gray" },
+const STATUS_COLOR: Record<string, string> = {
+  new: "badge-blue",
+  contacted: "badge-orange",
+  qualified: "badge-purple",
+  converted: "badge-green",
+  lost: "badge-gray",
 };
 
-const SOURCES = ["Semua", "TikTok Ads", "Instagram", "Meta Ads", "Shopee", "WhatsApp Blast", "Referral"];
-const CS_LIST = ["Semua", "Sari", "Dewi"];
+const STATUS_LABEL: Record<string, string> = {
+  new: "Baru",
+  contacted: "Dihubungi",
+  qualified: "Qualified",
+  converted: "Converted",
+  lost: "Tidak Jadi",
+};
 
-const counts = {
-  new:       dummy.filter(l => l.status === "new").length,
-  follow_up: dummy.filter(l => l.status === "follow_up").length,
-  closing:   dummy.filter(l => l.status === "closing").length,
-  lost:      dummy.filter(l => l.status === "lost").length,
+const SOURCE_OPTIONS = ["Instagram", "WhatsApp", "TikTok", "Marketplace", "Referral", "Website", "Lainnya"];
+
+const DEFAULT_FORM: FormState = {
+  name: "",
+  source: "",
+  status: "new",
+  phone: "",
+  notes: "",
 };
 
 export default function LeadsPage() {
-  const [filterStatus, setFilterStatus] = useState("Semua");
-  const [filterSource, setFilterSource] = useState("Semua");
-  const [filterCS, setFilterCS] = useState("Semua");
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [form, setForm] = useState<FormState>(DEFAULT_FORM);
+  const [error, setError] = useState("");
 
-  const filtered = dummy.filter(l =>
-    (filterStatus === "Semua" || l.status === filterStatus) &&
-    (filterSource === "Semua" || l.source === filterSource) &&
-    (filterCS === "Semua" || l.assigned_cs === filterCS) &&
-    (search === "" || l.name.toLowerCase().includes(search.toLowerCase()) || l.phone.includes(search))
-  );
+  useEffect(() => {
+    fetchLeads();
+  }, []);
+
+  async function fetchLeads() {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("nf_leads")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (!error && data) setLeads(data);
+    setLoading(false);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.name.trim()) { setError("Nama lead wajib diisi"); return; }
+    setSaving(true);
+    setError("");
+    const { error: insertError } = await supabase.from("nf_leads").insert([{
+      name: form.name.trim(),
+      source: form.source || null,
+      status: form.status,
+      phone: form.phone.trim() || null,
+      notes: form.notes.trim() || null,
+    }]);
+    if (insertError) {
+      setError("Gagal menyimpan: " + insertError.message);
+    } else {
+      setShowForm(false);
+      setForm(DEFAULT_FORM);
+      fetchLeads();
+    }
+    setSaving(false);
+  }
+
+  async function updateStatus(id: string, status: Lead["status"]) {
+    await supabase.from("nf_leads").update({ status }).eq("id", id);
+    setLeads(prev => prev.map(l => l.id === id ? { ...l, status } : l));
+  }
+
+  const filtered = leads.filter(l => {
+    const matchSearch = l.name.toLowerCase().includes(search.toLowerCase()) ||
+      (l.phone || "").includes(search);
+    const matchStatus = filterStatus === "all" || l.status === filterStatus;
+    return matchSearch && matchStatus;
+  });
 
   return (
-    <div className="flex">
+    <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
-      <main className="main-content flex-1">
-        {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
+      <main className="main-content flex-1 p-6">
+        <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="page-title">CS & Lead Tracker</h1>
-            <p className="page-subtitle">Monitor leads masuk, follow up, dan closing</p>
+            <p className="page-subtitle">Kelola lead dan follow-up customer NF</p>
           </div>
-          <button className="btn-primary">+ Tambah Lead</button>
+          <button onClick={() => setShowForm(true)} className="btn-primary">
+            + Tambah Lead
+          </button>
         </div>
 
-        {/* KPI */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="kpi-card border-l-4 border-blue-400">
-            <p className="text-slate-500 text-xs font-medium">Lead Baru</p>
-            <p className="text-2xl font-bold text-blue-600 mt-1">{counts.new}</p>
-          </div>
-          <div className="kpi-card border-l-4 border-yellow-400">
-            <p className="text-slate-500 text-xs font-medium">Follow Up</p>
-            <p className="text-2xl font-bold text-yellow-600 mt-1">{counts.follow_up}</p>
-          </div>
-          <div className="kpi-card border-l-4 border-green-400">
-            <p className="text-slate-500 text-xs font-medium">Closing</p>
-            <p className="text-2xl font-bold text-green-600 mt-1">{counts.closing}</p>
-            <p className="text-slate-400 text-xs mt-1">Rate: {((counts.closing / dummy.length) * 100).toFixed(0)}%</p>
-          </div>
-          <div className="kpi-card border-l-4 border-gray-300">
-            <p className="text-slate-500 text-xs font-medium">Lost</p>
-            <p className="text-2xl font-bold text-gray-500 mt-1">{counts.lost}</p>
-          </div>
-        </div>
-
-        {/* Filter Row */}
-        <div className="flex flex-wrap items-center gap-3 mb-4">
+        {/* Filters */}
+        <div className="flex flex-wrap gap-3 mb-6">
           <input
-            className="input-field w-48"
-            placeholder="Cari nama / HP..."
+            className="input-field w-64"
+            placeholder="Cari nama atau nomor..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
-          <select className="select-field w-36" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-            <option value="Semua">Semua Status</option>
-            {Object.entries(statusConfig).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-          </select>
-          <select className="select-field w-40" value={filterSource} onChange={e => setFilterSource(e.target.value)}>
-            {SOURCES.map(s => <option key={s}>{s}</option>)}
-          </select>
-          <select className="select-field w-32" value={filterCS} onChange={e => setFilterCS(e.target.value)}>
-            {CS_LIST.map(s => <option key={s}>{s === "Semua" ? "Semua CS" : s}</option>)}
+          <select
+            className="select-field w-44"
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value)}
+          >
+            <option value="all">Semua Status</option>
+            {Object.entries(STATUS_LABEL).map(([k, v]) => (
+              <option key={k} value={k}>{v}</option>
+            ))}
           </select>
         </div>
 
-        {/* Table */}
-        <div className="card overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr>
-                <th className="table-head">Nama</th>
-                <th className="table-head">No. HP</th>
-                <th className="table-head">Sumber</th>
-                <th className="table-head">Produk</th>
-                <th className="table-head">CS</th>
-                <th className="table-head">Status</th>
-                <th className="table-head">Catatan</th>
-                <th className="table-head">Tanggal</th>
-                <th className="table-head">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(l => (
-                <tr key={l.id} className="table-row">
-                  <td className="table-cell font-semibold text-slate-800">{l.name}</td>
-                  <td className="table-cell">
-                    <a href={`https://wa.me/62${l.phone.slice(1)}`} target="_blank" rel="noopener noreferrer"
-                      className="text-green-600 font-medium hover:underline flex items-center gap-1">
-                      📱 {l.phone}
-                    </a>
-                  </td>
-                  <td className="table-cell">
-                    <span className="badge badge-blue">{l.source}</span>
-                  </td>
-                  <td className="table-cell text-slate-600">{l.product}</td>
-                  <td className="table-cell">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs font-semibold text-slate-600">
-                        {l.assigned_cs[0]}
-                      </div>
-                      <span className="text-sm">{l.assigned_cs}</span>
-                    </div>
-                  </td>
-                  <td className="table-cell">
-                    <span className={`badge ${statusConfig[l.status].cls}`}>{statusConfig[l.status].label}</span>
-                  </td>
-                  <td className="table-cell text-slate-400 text-xs max-w-48 truncate">{l.notes || "-"}</td>
-                  <td className="table-cell text-slate-400 text-xs">{l.created_at}</td>
-                  <td className="table-cell">
-                    <button className="text-blue-600 text-xs font-medium hover:underline">Edit</button>
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr><td colSpan={9} className="text-center py-8 text-slate-300">Tidak ada lead</td></tr>
-              )}
-            </tbody>
-          </table>
-          <div className="px-4 py-3 border-t border-slate-50 text-xs text-slate-400">
-            Menampilkan {filtered.length} dari {dummy.length} lead
-          </div>
+        {/* Summary Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+          {Object.entries(STATUS_LABEL).map(([status, label]) => (
+            <div key={status} className="card text-center">
+              <div className="text-2xl font-bold text-gray-800">
+                {leads.filter(l => l.status === status).length}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">{label}</div>
+            </div>
+          ))}
         </div>
+
+        {/* Table */}
+        {loading ? (
+          <div className="text-center py-12 text-gray-400">Memuat lead dari Supabase...</div>
+        ) : (
+          <div className="card overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  <th className="table-head">Nama</th>
+                  <th className="table-head">No. WA</th>
+                  <th className="table-head">Sumber</th>
+                  <th className="table-head">Status</th>
+                  <th className="table-head">Catatan</th>
+                  <th className="table-head">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(lead => (
+                  <tr key={lead.id} className="table-row">
+                    <td className="table-cell font-medium">{lead.name}</td>
+                    <td className="table-cell">
+                      {lead.phone ? (
+                        <a
+                          href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, "")}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-green-600 hover:text-green-700 font-medium"
+                        >
+                          {lead.phone}
+                        </a>
+                      ) : "-"}
+                    </td>
+                    <td className="table-cell">{lead.source || "-"}</td>
+                    <td className="table-cell">
+                      <span className={`${STATUS_COLOR[lead.status]}`}>
+                        {STATUS_LABEL[lead.status]}
+                      </span>
+                    </td>
+                    <td className="table-cell text-gray-500 max-w-xs truncate">{lead.notes || "-"}</td>
+                    <td className="table-cell">
+                      <select
+                        className="text-xs border border-gray-200 rounded px-2 py-1 bg-white"
+                        value={lead.status}
+                        onChange={e => updateStatus(lead.id, e.target.value as Lead["status"])}
+                      >
+                        {Object.entries(STATUS_LABEL).map(([k, v]) => (
+                          <option key={k} value={k}>{v}</option>
+                        ))}
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="table-cell text-center text-gray-400 py-8">
+                      {leads.length === 0 ? "Belum ada lead. Klik + Tambah Lead untuk mulai." : "Tidak ada lead yang sesuai filter."}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Form Modal */}
+        {showForm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold text-gray-800">Tambah Lead Baru</h2>
+                  <button onClick={() => { setShowForm(false); setError(""); }} className="text-gray-400 hover:text-gray-600 text-xl font-bold">x</button>
+                </div>
+                {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">{error}</div>}
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nama *</label>
+                    <input className="input-field" placeholder="Nama customer" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">No. WhatsApp</label>
+                    <input className="input-field" placeholder="628xxxxxxxx" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Sumber</label>
+                      <select className="select-field" value={form.source} onChange={e => setForm(f => ({ ...f, source: e.target.value }))}>
+                        <option value="">Pilih sumber</option>
+                        {SOURCE_OPTIONS.map(s => <option key={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                      <select className="select-field" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as FormState["status"] }))}>
+                        {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Catatan</label>
+                    <textarea className="input-field" rows={3} placeholder="Catatan lead..." value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <button type="button" onClick={() => { setShowForm(false); setError(""); }} className="btn-secondary flex-1">Batal</button>
+                    <button type="submit" disabled={saving} className="btn-primary flex-1">{saving ? "Menyimpan..." : "Simpan Lead"}</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
-}
+          }
