@@ -1,7 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "@/components/layout/Sidebar";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 type Content = {
   id: number;
@@ -15,35 +21,74 @@ type Content = {
   notes: string;
 };
 
-const dummy: Content[] = [
-  { id: 1, title: "Promo Akhir Bulan Nusa Rod", brand: "NF - Iklan", content_type: "Reels", platform: "TikTok", scheduled_date: "2026-05-24", status: "filming", pic: "Dika", notes: "Hook: harga turun 30%" },
-  { id: 2, title: "Carousel 5 Produk Unggulan", brand: "NF - Iklan", content_type: "Carousel", platform: "Instagram", scheduled_date: "2026-05-25", status: "brief_done", pic: "Rini", notes: "Tampilkan best seller" },
-  { id: 3, title: "Menu Baru Buri Umah", brand: "F&B - Buri Umah", content_type: "Story", platform: "Instagram", scheduled_date: "2026-05-23", status: "posted", pic: "Andi", notes: "" },
-  { id: 4, title: "Behind the scene Produksi", brand: "NF - Iklan", content_type: "Reels", platform: "TikTok", scheduled_date: "2026-05-26", status: "draft", pic: "Dika", notes: "Tampilkan proses produksi" },
-  { id: 5, title: "Testimoni Customer Buri Umah", brand: "F&B - Buri Umah", content_type: "Reels", platform: "Instagram", scheduled_date: "2026-05-27", status: "editing", pic: "Rini", notes: "" },
-  { id: 6, title: "Tips Memilih Pancing yang Tepat", brand: "NF - Iklan", content_type: "Carousel", platform: "Instagram", scheduled_date: "2026-05-28", status: "review", pic: "Andi", notes: "Educational content" },
-  { id: 7, title: "Kisamen Buka Cabang Baru", brand: "F&B - Kisamen", content_type: "Story", platform: "Instagram", scheduled_date: "2026-05-29", status: "draft", pic: "Maya", notes: "" },
-  { id: 8, title: "Live TikTok Flash Sale", brand: "NF - Iklan", content_type: "Live", platform: "TikTok", scheduled_date: "2026-05-30", status: "brief_done", pic: "Dika", notes: "Jam 19.00 WIB" },
-];
-
 const statusConfig: Record<string, { label: string; cls: string }> = {
-  draft:      { label: "Draft",      cls: "badge-gray" },
+  draft: { label: "Draft", cls: "badge-gray" },
   brief_done: { label: "Brief Done", cls: "badge-blue" },
-  filming:    { label: "Filming",    cls: "badge-orange" },
-  editing:    { label: "Editing",    cls: "badge-yellow" },
-  review:     { label: "Review",     cls: "badge-purple" },
-  posted:     { label: "Posted",     cls: "badge-green" },
+  filming: { label: "Filming", cls: "badge-orange" },
+  editing: { label: "Editing", cls: "badge-yellow" },
+  review: { label: "Review", cls: "badge-purple" },
+  posted: { label: "Posted", cls: "badge-green" },
 };
 
 const PLATFORMS = ["Semua", "TikTok", "Instagram", "Facebook"];
 const CONTENT_TYPES = ["Semua", "Reels", "Carousel", "Story", "Live", "Feed"];
 
 export default function MediaPage() {
+  const [contents, setContents] = useState<Content[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filterPlatform, setFilterPlatform] = useState("Semua");
   const [filterType, setFilterType] = useState("Semua");
-  const [view, setView] = useState<"table" | "calendar">("table");
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState({
+    title: "",
+    brand: "",
+    content_type: "Reels",
+    platform: "TikTok",
+    scheduled_date: new Date().toISOString().split("T")[0],
+    status: "draft" as Content["status"],
+    pic: "",
+    notes: "",
+  });
 
-  const filtered = dummy.filter(c =>
+  useEffect(() => {
+    fetchContents();
+  }, []);
+
+  async function fetchContents() {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("content_calendar")
+      .select("*")
+      .order("scheduled_date", { ascending: true });
+    if (!error && data) setContents(data);
+    setLoading(false);
+  }
+
+  async function handleSubmit() {
+    if (!form.title || !form.brand) return;
+    const { error } = await supabase.from("content_calendar").insert([form]);
+    if (!error) {
+      setShowModal(false);
+      setForm({
+        title: "",
+        brand: "",
+        content_type: "Reels",
+        platform: "TikTok",
+        scheduled_date: new Date().toISOString().split("T")[0],
+        status: "draft",
+        pic: "",
+        notes: "",
+      });
+      fetchContents();
+    }
+  }
+
+  async function updateStatus(id: number, status: Content["status"]) {
+    await supabase.from("content_calendar").update({ status }).eq("id", id);
+    fetchContents();
+  }
+
+  const filtered = contents.filter(c =>
     (filterPlatform === "Semua" || c.platform === filterPlatform) &&
     (filterType === "Semua" || c.content_type === filterType)
   );
@@ -51,23 +96,20 @@ export default function MediaPage() {
   const statusCounts = Object.keys(statusConfig).map(k => ({
     key: k,
     ...statusConfig[k],
-    count: dummy.filter(c => c.status === k).length,
+    count: contents.filter(c => c.status === k).length,
   }));
 
   return (
-    <div className="flex">
+    <div className="flex min-h-screen">
       <Sidebar />
       <main className="main-content flex-1">
-        {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="page-title">Media Pusat</h1>
             <p className="page-subtitle">Kalender konten dan manajemen aset kreatif</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setView("table")} className={`btn-secondary ${view === "table" ? "bg-slate-100" : ""}`}>📋 Tabel</button>
-            <button onClick={() => setView("calendar")} className={`btn-secondary ${view === "calendar" ? "bg-slate-100" : ""}`}>📅 Kalender</button>
-            <button className="btn-primary">+ Tambah Konten</button>
+            <button className="btn-primary" onClick={() => setShowModal(true)}>+ Tambah Konten</button>
           </div>
         </div>
 
@@ -105,50 +147,122 @@ export default function MediaPage() {
 
         {/* Table */}
         <div className="card overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr>
-                <th className="table-head">Judul Konten</th>
-                <th className="table-head">Brand</th>
-                <th className="table-head">Tipe</th>
-                <th className="table-head">Platform</th>
-                <th className="table-head">Tanggal</th>
-                <th className="table-head">PIC</th>
-                <th className="table-head">Status</th>
-                <th className="table-head">Catatan</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(c => (
-                <tr key={c.id} className="table-row">
-                  <td className="table-cell font-medium text-slate-800">{c.title}</td>
-                  <td className="table-cell text-slate-500">{c.brand}</td>
-                  <td className="table-cell">
-                    <span className="badge badge-blue">{c.content_type}</span>
-                  </td>
-                  <td className="table-cell text-slate-500">{c.platform}</td>
-                  <td className="table-cell text-slate-500">{c.scheduled_date}</td>
-                  <td className="table-cell">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs font-semibold text-slate-600">
-                        {c.pic[0]}
-                      </div>
-                      <span className="text-sm text-slate-600">{c.pic}</span>
-                    </div>
-                  </td>
-                  <td className="table-cell">
-                    <span className={`badge ${statusConfig[c.status].cls}`}>{statusConfig[c.status].label}</span>
-                  </td>
-                  <td className="table-cell text-slate-400 text-xs">{c.notes || "-"}</td>
+          {loading ? (
+            <p className="text-center py-8 text-slate-400">Memuat konten dari Supabase...</p>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr>
+                  <th className="table-head">Judul Konten</th>
+                  <th className="table-head">Brand</th>
+                  <th className="table-head">Tipe</th>
+                  <th className="table-head">Platform</th>
+                  <th className="table-head">Tanggal</th>
+                  <th className="table-head">PIC</th>
+                  <th className="table-head">Status</th>
+                  <th className="table-head">Catatan</th>
                 </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr><td colSpan={8} className="text-center py-8 text-slate-300">Tidak ada konten</td></tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filtered.map(c => (
+                  <tr key={c.id} className="table-row">
+                    <td className="table-cell font-medium text-slate-800">{c.title}</td>
+                    <td className="table-cell text-slate-500">{c.brand}</td>
+                    <td className="table-cell">
+                      <span className="badge badge-blue">{c.content_type}</span>
+                    </td>
+                    <td className="table-cell text-slate-500">{c.platform}</td>
+                    <td className="table-cell text-slate-500">{c.scheduled_date}</td>
+                    <td className="table-cell">
+                      {c.pic && (
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs font-semibold text-slate-600">
+                            {c.pic[0]}
+                          </div>
+                          <span className="text-sm text-slate-600">{c.pic}</span>
+                        </div>
+                      )}
+                    </td>
+                    <td className="table-cell">
+                      <select
+                        className="text-xs border border-slate-200 rounded px-2 py-1"
+                        value={c.status}
+                        onChange={e => updateStatus(c.id, e.target.value as Content["status"])}>
+                        {Object.entries(statusConfig).map(([k, v]) => (
+                          <option key={k} value={k}>{v.label}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="table-cell text-slate-400 text-xs">{c.notes || "-"}</td>
+                  </tr>
+                ))}
+                {filtered.length === 0 && !loading && (
+                  <tr><td colSpan={8} className="text-center py-8 text-slate-300">Belum ada konten. Klik + Tambah Konten untuk mulai.</td></tr>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
+
+        {/* Modal Tambah Konten */}
+        {showModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+              <h2 className="text-lg font-bold mb-4">Tambah Konten</h2>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Judul Konten *</label>
+                  <input className="input-field" placeholder="Judul konten..." value={form.title} onChange={e => setForm({...form, title: e.target.value})} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Brand *</label>
+                    <input className="input-field" placeholder="Nama brand..." value={form.brand} onChange={e => setForm({...form, brand: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">PIC</label>
+                    <input className="input-field" placeholder="Nama PIC..." value={form.pic} onChange={e => setForm({...form, pic: e.target.value})} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Tipe Konten</label>
+                    <select className="select-field" value={form.content_type} onChange={e => setForm({...form, content_type: e.target.value})}>
+                      {CONTENT_TYPES.filter(t => t !== "Semua").map(t => <option key={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Platform</label>
+                    <select className="select-field" value={form.platform} onChange={e => setForm({...form, platform: e.target.value})}>
+                      {PLATFORMS.filter(p => p !== "Semua").map(p => <option key={p}>{p}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Tanggal Jadwal</label>
+                    <input type="date" className="input-field" value={form.scheduled_date} onChange={e => setForm({...form, scheduled_date: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                    <select className="select-field" value={form.status} onChange={e => setForm({...form, status: e.target.value as Content["status"]})}>
+                      {Object.entries(statusConfig).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Catatan</label>
+                  <input className="input-field" placeholder="Catatan tambahan..." value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-5">
+                <button className="btn-secondary flex-1" onClick={() => setShowModal(false)}>Batal</button>
+                <button className="btn-primary flex-1" onClick={handleSubmit}>Simpan</button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
-}
+                       }
