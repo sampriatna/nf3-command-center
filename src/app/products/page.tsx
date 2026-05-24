@@ -66,7 +66,7 @@ export default function ProductsPage() {
   async function fetchProducts() {
         setLoading(true);
         const { data, error } = await supabase
-          .from("products")
+          .from("inventory_products")
           .select("*")
           .order("business_unit", { ascending: true })
           .order("name", { ascending: true });
@@ -126,7 +126,7 @@ export default function ProductsPage() {
 
           // Hapus dari Supabase
           const { error } = await supabase
-                  .from("products")
+                  .from("inventory_products")
                   .delete()
                   .eq("id", deleteConfirm.id);
 
