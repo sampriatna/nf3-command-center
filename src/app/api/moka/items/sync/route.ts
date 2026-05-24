@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
 
     // Upsert ke Supabase berdasarkan moka_item_id
     const { data: upserted, error } = await supabase
-      .from("products")
+      .from("inventory_products")
       .upsert(products, { onConflict: "moka_item_id", ignoreDuplicates: false })
       .select();
 
