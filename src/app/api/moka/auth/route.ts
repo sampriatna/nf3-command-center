@@ -6,6 +6,7 @@ export async function GET() {
   
   const authUrl = new URL('https://api.mokapos.com/oauth/authorize');
   authUrl.searchParams.set('client_id', clientId);
+    authUrl.searchParams.set('scope', 'library report transaction');
   authUrl.searchParams.set('redirect_uri', redirectUri);
   authUrl.searchParams.set('response_type', 'code');
   
