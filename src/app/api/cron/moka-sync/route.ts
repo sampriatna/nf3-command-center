@@ -20,25 +20,34 @@ type MokaItem = {
   category?: { name?: string };
 };
 
-// Vercel Cron Job handler - runs automatically on schedule
-// Called by Vercel infrastructure, secured by CRON_SECRET
+async function getMokaToken(): Promise<{ access_token: string; outlet_id: string } | null> {
+  const { data, error } = await supabase
+    .from("moka_connections")
+    .select("access_token, outlet_id")
+    .order("id", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error || !data) return null;
+  return data;
+}
+
 export async function GET(req: Request) {
-  // Verify this is called by Vercel Cron (not public)
   const authHeader = req.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const apiKey = process.env.MOKA_API_KEY;
-  const outletId = process.env.MOKA_OUTLET_ID;
+  const conn = await getMokaToken();
 
-  if (!apiKey || !outletId) {
+  if (!conn) {
     return NextResponse.json(
-      { error: "MOKA_API_KEY dan MOKA_OUTLET_ID belum diset di environment variables" },
+      { error: "Moka belum terhubung. Hubungkan Moka terlebih dahulu di halaman Settings." },
       { status: 400 }
     );
   }
 
+  const { access_token: apiKey, outlet_id: outletId } = conn;
   const results: { task: string; status: string; detail?: string }[] = [];
 
   // === 1. Sync Products/Items ===
@@ -145,11 +154,10 @@ export async function GET(req: Request) {
   }
 
   const allOk = results.every(r => r.status !== "error");
-  const syncedAt = new Date().toISOString();
 
   return NextResponse.json({
     success: allOk,
-    synced_at: syncedAt,
+    synced_at: new Date().toISOString(),
     results,
   });
 }
