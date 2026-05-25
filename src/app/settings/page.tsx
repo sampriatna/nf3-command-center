@@ -1,48 +1,90 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "@/components/layout/Sidebar";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("profile");
   const [saved, setSaved] = useState(false);
-  const [mokaKey, setMokaKey] = useState("");
-  const [mokaOutletId, setMokaOutletId] = useState("");
-  const [mokaSaved, setMokaSaved] = useState(false);
-  const [mokaStatus, setMokaStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
+
+  // Moka OAuth status
+  const [mokaStatus, setMokaStatus] = useState<"checking" | "connected" | "disconnected">("checking");
+  const [mokaOutletName, setMokaOutletName] = useState("");
+  const [mokaExpiresAt, setMokaExpiresAt] = useState("");
+
+  // Fontte
+  const [fontteKey, setFontteKey] = useState("");
+  const [fontteStatus, setFontteStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("moka") === "connected") {
+      setActiveTab("integrations");
+    }
+    checkMokaConnection();
+  }, []);
+
+  async function checkMokaConnection() {
+    setMokaStatus("checking");
+    const { data, error } = await supabase
+      .from("moka_connections")
+      .select("outlet_id, expires_at, updated_at")
+      .limit(1)
+      .single();
+    if (!error && data) {
+      setMokaStatus("connected");
+      setMokaOutletName(data.outlet_id || "");
+      setMokaExpiresAt(data.expires_at ? new Date(data.expires_at).toLocaleDateString("id-ID") : "");
+    } else {
+      setMokaStatus("disconnected");
+    }
+  }
+
+  async function handleDisconnectMoka() {
+    await supabase.from("moka_connections").delete().neq("id", 0);
+    setMokaStatus("disconnected");
+    setMokaOutletName("");
+    setMokaExpiresAt("");
+  }
+
+  async function handleTestFontte() {
+    if (!fontteKey) return;
+    setFontteStatus("testing");
+    try {
+      const res = await fetch("https://api.fontte.com/send", {
+        method: "POST",
+        headers: {
+          "Authorization": fontteKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          target: "08123456789",
+          message: "Test notifikasi NF3 Command Center ✅",
+        }),
+      });
+      setFontteStatus(res.ok ? "success" : "error");
+    } catch {
+      setFontteStatus("error");
+    }
+  }
 
   function handleSave() {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
 
-  async function handleTestMoka() {
-    if (!mokaKey || !mokaOutletId) return;
-    setMokaStatus("testing");
-    try {
-      const res = await fetch("/api/moka/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey: mokaKey, outletId: mokaOutletId }),
-      });
-      if (res.ok) {
-        setMokaStatus("success");
-        setMokaSaved(true);
-        setTimeout(() => setMokaSaved(false), 3000);
-      } else {
-        setMokaStatus("error");
-      }
-    } catch {
-      setMokaStatus("error");
-    }
-  }
-
   const tabs = [
-    { key: "profile", label: "Profil", icon: "P" },
-    { key: "integrations", label: "Integrasi", icon: "I" },
-    { key: "notifications", label: "Notifikasi", icon: "N" },
-    { key: "roles", label: "Role & Akses", icon: "R" },
-    { key: "business", label: "Business Units", icon: "B" },
+    { key: "profile", label: "Profil", icon: "💤" },
+    { key: "integrations", label: "Integrasi", icon: "👌" },
+    { key: "notifications", label: "Notifikasi", icon: "🔕" },
+    { key: "roles", label: "Role & Akses", icon: "📵😏" },
+    { key: "business", label: "Business Units", icon: "🏢" },
   ];
 
   return (
@@ -55,7 +97,7 @@ export default function SettingsPage() {
         </div>
 
         <div className="flex gap-6">
-          <div className="w-48 shrink-0">
+          <div className="w-52 shrink-0">
             <nav className="space-y-1">
               {tabs.map(t => (
                 <button key={t.key} onClick={() => setActiveTab(t.key)}
@@ -73,7 +115,7 @@ export default function SettingsPage() {
               <div>
                 <h2 className="font-bold text-slate-900 mb-4">Profil Pengguna</h2>
                 <div className="flex items-center gap-4 mb-6">
-                  <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-2xl">S</div>
+                  <div className="w46 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-2xl">S</div>
                   <div>
                     <p className="font-semibold text-slate-800">Sam Priatna</p>
                     <p className="text-sm text-slate-500">Owner - Akses penuh semua modul</p>
@@ -102,102 +144,163 @@ export default function SettingsPage() {
             )}
 
             {activeTab === "integrations" && (
-              <div>
-                <h2 className="font-bold text-slate-900 mb-4">Integrasi &amp; API Keys</h2>
-                <div className="space-y-4">
-                  {[
-                    { name: "Supabase", desc: "Database utama - PostgreSQL", key: "NEXT_PUBLIC_SUPABASE_URL" },
-                    { name: "Supabase Anon Key", desc: "Public API key untuk client-side", key: "NEXT_PUBLIC_SUPABASE_ANON_KEY" },
-                    { name: "OpenAI API", desc: "Untuk semua fitur AI Agents", key: "OPENAI_API_KEY" },
-                    { name: "n8n Webhook", desc: "Otomasi workflow dan notifikasi", key: "N8N_WEBHOOK_URL" },
-                    { name: "Fonnte / WhatsApp", desc: "Kirim notifikasi WA ke tim", key: "FONNTE_API_KEY" },
-                    { name: "Google Drive", desc: "Backup dokumen dan aset konten", key: "GOOGLE_DRIVE_FOLDER_ID" },
-                  ].map(item => (
-                    <div key={item.key} className="flex items-center justify-between p-4 border border-slate-200 rounded-xl hover:bg-slate-50">
-                      <div className="flex items-center gap-3">
-                        <div>
-                          <p className="font-semibold text-slate-800 text-sm">{item.name}</p>
-                          <p className="text-slate-500 text-xs">{item.desc}</p>
-                          <p className="text-slate-400 text-xs font-mono mt-0.5">{item.key}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded-full font-medium">Belum diset</span>
-                        <button className="btn-secondary text-xs">Set di Vercel</button>
-                      </div>
-                    </div>
-                  ))}
+              <div className="space-y-6">
+                <h2 className="font-bold text-slate-900">Integrasi &amp; Koneksi</h2>
 
-                  <div className="border border-slate-200 rounded-xl overflow-hidden">
-                    <div className="flex items-center justify-between p-4 bg-slate-50 border-b border-slate-200">
-                      <div className="flex items-center gap-3">
-                        <div>
-                          <p className="font-semibold text-slate-800 text-sm">Moka POS</p>
-                          <p className="text-slate-500 text-xs">Sinkronisasi data penjualan F&amp;B dari kasir Moka</p>
-                          <p className="text-slate-400 text-xs font-mono mt-0.5">MOKA_API_KEY + MOKA_OUTLET_ID</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {mokaStatus === "success" && (
-                          <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full font-medium">Terhubung</span>
-                        )}
-                        {mokaStatus === "error" && (
-                          <span className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded-full font-medium">Gagal</span>
-                        )}
-                        {mokaStatus === "idle" && (
-                          <span className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded-full font-medium">Belum diset</span>
-                        )}
-                        {mokaStatus === "testing" && (
-                          <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full font-medium animate-pulse">Menguji...</span>
-                        )}
+                {/* MOKA POS -- NF */}
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <div className="flex items-center justify-between p4 bg-blue-50 border-b border-blue-100">
+                    <div className="flex items-center gap-3">
+                      <div className="w9 h-9 bg-blue-600 rounded-lg flex items-center justify-center text-white text-sm font-bold">M</div>
+                      <div>
+                        <p className="font-semibold text-slate-800 text-sm">Moka POS</p>
+                        <p className="text-slate-500 text-xs">Nusa Fishing (NF) -- Kasir &amp; Penjualan</p>
                       </div>
                     </div>
-                    <div className="p-4 space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">API Key</label>
-                          <input
-                            type="password"
-                            className="input-field font-mono text-sm"
-                            placeholder="Masukkan Moka API Key..."
-                            value={mokaKey}
-                            onChange={e => setMokaKey(e.target.value)}
-                          />
+                    <div>
+                      {mokaStatus === "checking" && <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full">Mengecek...</span>}
+                      {mokaStatus === "connected" && <span className="text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-full font-medium">✅ Terhubung</span>}
+                      {mokaStatus === "disconnected" && <span className="text-xs text-orange-700 bg-orange-50 border border-orange-200 px-2 py-1 rounded-full font-medium">⚡️ Belum terhubung</span>}
+                    </div>
+                  </div>
+                  <div className="p-4">
+                    {mokaStatus === "connected" ? (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <p className="text-xs text-slate-500 mb-1">Outlet ID</p>
+                            <p className="font-mono text-slate-700 text-xs bg-slate-50 px-2 py-1 rounded">{mokaOutletName || "—"}</p>
+                          </div>
+                          {mokaExpiresAt && (
+                            <div>
+                              <p className="text-xs text-slate-500 mb-1">Token berlaku hingga</p>
+                              <p className="font-mono text-slate-700 text-xs bg-slate-50 px-2 py-1 rounded">{mokaExpiresAt}</p>
+                            </div>
+                          )}
                         </div>
-                        <div>
-                          <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Outlet ID</label>
-                          <input
-                            type="text"
-                            className="input-field font-mono text-sm"
-                            placeholder="Outlet ID dari dashboard Moka..."
-                            value={mokaOutletId}
-                            onChange={e => setMokaOutletId(e.target.value)}
-                          />
+                        <div className="flex items-center gap-3">
+                          <a href="/api/moka/auth" className="btn-secondary text-xs">💴 Reconnect OAuth</a>
+                          <button onClick={handleDisconnectMoka} className="text-red-600 text-xs font-medium hover:underline">Disconnect</button>
                         </div>
+                        <p className="text-xs text-green-700 bg-green-50 p-2 rounded-lg">
+                          ✅ Token tersimpan di server. Semua tim bisa Sync Moka dari halaman Finance tanpa input API key.
+                        </p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={handleTestMoka}
-                          disabled={!mokaKey || !mokaOutletId || mokaStatus === "testing"}
-                          className="btn-primary text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          {mokaStatus === "testing" ? "Menguji Koneksi..." : "Test dan Simpan Koneksi"}
-                        </button>
-                        {mokaSaved && (
-                          <span className="text-green-600 text-sm font-medium">Koneksi berhasil disimpan!</span>
-                        )}
+                    ) : (
+                      <div className="space-y-3">
+                        <p className="text-sm text-slate-600">
+                          Hubungkan akun Moka sekali via OAuth. Token disimpan otomatis di server -- tim tidak perlu input API key lagi.
+                        </p>
+                        <div className="flex items-start gap-2 text-xs text-slate-500 bg-slate-50 p-3 rounded-lg">
+                          <span>™OK</span>
+                          <div>
+                            <p className="font-medium text-slate-700 mb-1">Cara kerja OAuth Moka:</p>
+                            <ol className="list-decimal ml-4 space-y-1">
+                              <li>Klik tombol di bawah -- redirect ke Moka login</li>
+                              <li>Login dengan akun Moka NF3 Authentic</li>
+                              <li>Klik Izinkan -- token tersimpan otomatis</li>
+                              <li>Selesai -- semua tim bisa sync data NF</li>
+                            </ol>
+                          </div>
+                        </div>
+                        <a href="/api/moka/auth" className="btn-primary text-sm inline-block">🔡 Hubungkan Moka via OAuth</a>
                       </div>
-                      <div className="p-3 bg-amber-50 rounded-lg border border-amber-100">
-                        <p className="text-xs text-amber-700 font-medium mb-1">Cara mendapatkan Moka API Key</p>
-                        <p className="text-xs text-amber-600">Login ke dashboard.mokapos.com, lalu Settings, Integrasi, API Key. Outlet ID ada di URL halaman outlet.</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* ESB -- F&B */}
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <div className="flex items-center justify-between p-4 bg-orange-50 border-b border-orange-100">
+                    <div className="flex items-center gap-3">
+                      <div className="w9 h-9 bg-orange-600 rounded-lg flex items-center justify-center text-white text-sm font-bold">E</div>
+                      <div>
+                        <p className="font-semibold text-slate-800 text-sm">ESB (F&amp;B System)</p>
+                        <p className="text-slate-500 text-xs">Buri Umah Group -- ERP &amp; Kasir F&amp;B</p>
                       </div>
+                    </div>
+                    <span className="text-xs text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded-full font-medium">📇 CSV Import</span>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    <p className="text-sm text-slate-600">
+                      ESB digunakan untuk bisnis F&amp;B (Buri Umah, Kisamen, Samtaro). Input data bisa dilakukan via manual entry atau upload CSV dari laporan ESB.
+                    </p>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      {["Buri Umah", "Kisamen", "Samtaro Express", "Produksi Pusat"].map(o => (
+                        <div key={o} className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg">
+                          <span className="text-orange-500">🏧j</span>
+                          <span className="text-slate-700 font-medium">{o}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="p-3 bg-amber-50 rounded-lg text-xs text-amber-700 border border-amber-100">
+                      <p className="font-medium mb-1">Cara input data F&amp;B:</p>
+                      <p>Pergi ke Finance &rarr; klik <strong>&quot;� Input F&amp;B ESB&quot;</strong> &rarr; input manual atau upload CSV harian.</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
-                  <p className="text-sm text-blue-700 font-medium mb-1">Cara setup Environment Variables</p>
-                  <p className="text-xs text-blue-600">Buka Vercel, Project Settings, Environment Variables, tambahkan key di atas, lalu Redeploy.</p>
+                {/* Fontte WA */}
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <div className="flex items-center justify-between p4 bg-green-50 border-b border-green-100">
+                    <div className="flex items-center gap-3">
+                      <div className="w9 h-9 bg-green-600 rounded-lg flex items-center justify-center text-white text-sm font-bold">F</div>
+                      <div>
+                        <p className="font-semibold text-slate-800 text-sm">Fontte WhatsApp</p>
+                        <p className="text-slate-500 text-xs">Notifikasi task &amp; reminder ke tim via WA</p>
+                      </div>
+                    </div>
+                    {fontteStatus === "success" && <span className="text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-full">✅ Terhubung</span>}
+                    {fontteStatus === "error" && <span className="text-xs text-red-700 bg-red-50 border border-red-200 px-2 py-1 rounded-full">❌ Gagal</span>}
+                    {fontteStatus === "idle" && <span className="text-xs text-orange-700 bg-orange-50 border border-orange-200 px-2 py-1 rounded-full">Belum diset</span>}
+                    {fontteStatus === "testing" && <span className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded-full animate-pulse">Mengetes...</span>}
+                  </div>
+                  <div className="p-4 space-y-3">
+                    <p className="text-xs text-slate-500">Token Fontte harus di-set di Vercel Environment Variables sebagai <code className="bg-slate-100 px-1 rounded">FONNTE_API_KEY</code>, bukan disimpan di frontend.</p>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">API Token (test saja)</label>
+                      <input
+                        type="password"
+                        className="input-field font-mono text-sm"
+                        placeholder="Token Fontte untuk test..."
+                        value={fontteKey}
+                        onChange={e => setFontteKey(e.target.value)}
+                      />
+                    </div>
+                    <button
+                      onClick={handleTestFontte}
+                      disabled={!fontteKey || fontteStatus === "testing"}
+                      className="btn-secondary text-sm disabled:opacity-40"
+                    >
+                      {fontteStatus === "testing" ? "Mengetes..." : "Test Kirim WA"}
+                    </button>
+                    <div className="p-3 bg-slate-50 rounded-lg text-xs text-slate-500">
+                      Set <code className="bg-slate-100 px-1 rounded">FONNTE_API_KEY</code> di Vercel &rarr; Project Settings &rarr; Environment Variables untuk penggunaan production.
+                    </div>
+                  </div>
+                </div>
+
+                {/* Supabase & lainnya */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-slate-700">Environment Variables (set di Vercel)</h3>
+                  {[
+                    { name: "Supabase URL", key: "NEST_PUBLIC_SUPABASE_URL", desc: "Database utama" },
+                    { name: "Supabase Anon Key", key: "NEST_PUBLIC_SUPABASE_ANON_KEY", desc: "Public API key" },
+                    { name: "Supabase Service Role", key: "SUPABASE_SERVICE_ROLE_KEY", desc: "Server-side operations" },
+                    { name: "Moka Client ID", key: "MOKA_CLIENT_ID", desc: "OAuth App ID dari Moka" },
+                    { name: "Moka Client Secret", key: "MOKA_CLIENT_SECRET", desc: "OAuth App Secret dari Moka" },
+                    { name: "Fontte API Key", key: "FONNTE_API_KEY", desc: "Token WA notification" },
+                    { name: "OpenAI API Key", key: "OPENAI_API_KEY", desc: "Untuk AI Agents" },
+                  ].map(item => (
+                    <div key={item.key} className="flex items-center justify-between p-3 border border-slate-100 rounded-lg hover:bg-slate-50">
+                      <div>
+                        <p className="font-medium text-slate-800 text-sm">{item.name}</p>
+                        <p className="text-slate-500 text-xs">{item.desc}</p>
+                        <p className="text-slate-400 text-xs font-mono mt-0.5">{item.key}</p>
+                      </div>
+                      <a href="https://vercel.com" target="_blank" className="btn-secondary text-xs">Set di Vercel</a>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -207,10 +310,10 @@ export default function SettingsPage() {
                 <h2 className="font-bold text-slate-900 mb-4">Pengaturan Notifikasi</h2>
                 <div className="space-y-4">
                   {[
-                    { label: "Notif task baru masuk", desc: "Kirim ke WA Owner saat ada task dibuat" },
-                    { label: "Alert stok menipis", desc: "Kirim ke WA Owner jika stok di bawah minimum" },
-                    { label: "Lead baru masuk", desc: "Notifikasi ke CS saat ada lead baru" },
-                    { label: "Laporan harian otomatis", desc: "Kirim ringkasan harian jam 21.00 via WA" },
+                    { label: "Notif task baru", desc: "Kirim WA ke PIC saat task dibuat" },
+                    { label: "Alert stok menipis", desc: "Notif Owner jika stok di bawah minimum" },
+                    { label: "Lead baru masuk", desc: "Notif CS saat ada lead baru" },
+                    { label: "Laporan harian otomatis", desc: "Ringkasan harian jam 21.00 via WA" },
                     { label: "Alert iklan overspend", desc: "Notif jika budget iklan melebihi target" },
                   ].map((item, i) => (
                     <div key={i} className="flex items-center justify-between py-3 border-b border-slate-50">
@@ -231,18 +334,22 @@ export default function SettingsPage() {
             {activeTab === "roles" && (
               <div>
                 <h2 className="font-bold text-slate-900 mb-4">Role &amp; Akses Pengguna</h2>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {[
                     { role: "Owner", modules: "Semua modul", color: "badge-red", users: 1 },
+                    { role: "Super Admin", modules: "Semua kecuali billing", color: "badge-red", users: 0 },
                     { role: "Manager F&B", modules: "Dashboard, Task, Finance, SOP", color: "badge-orange", users: 2 },
                     { role: "Manager NF", modules: "Dashboard, Task, Leads, Produk, Ads", color: "badge-blue", users: 1 },
-                    { role: "CS / Customer Service", modules: "CS dan Lead saja", color: "badge-green", users: 3 },
+                    { role: "Finance Admin", modules: "Finance saja", color: "badge-yellow", users: 1 },
+                    { role: "CS Leader", modules: "CS & Lead, Task", color: "badge-green", users: 1 },
+                    { role: "CS Staff", modules: "CS & Lead saja", color: "badge-green", users: 3 },
                     { role: "Tim Konten", modules: "Media Pusat, Task", color: "badge-purple", users: 2 },
-                    { role: "Finance", modules: "Finance saja", color: "badge-yellow", users: 1 },
-                    { role: "Inventory", modules: "Produk dan Stok saja", color: "badge-gray", users: 2 },
-                    { role: "HR / SOP", modules: "Dokumen SOP saja", color: "badge-gray", users: 1 },
+                    { role: "Ads / Advertiser", modules: "Ads Center, Task", color: "badge-purple", users: 1 },
+                    { role: "Inventory / Gudang", modules: "Produk & Stok saja", color: "badge-gray", users: 2 },
+                    { role: "Kasir / Cashier", modules: "Finance input saja", color: "badge-gray", users: 2 },
+                    { role: "Viewer", modules: "Dashboard read-only", color: "badge-gray", users: 0 },
                   ].map((r, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg">
+                    <div key={i} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50">
                       <div className="flex items-center gap-3">
                         <span className={"badge " + r.color}>{r.role}</span>
                         <span className="text-sm text-slate-500">{r.modules}</span>
@@ -254,7 +361,7 @@ export default function SettingsPage() {
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-slate-400 mt-4">Role-based access akan aktif setelah Supabase Auth dikonfigurasi.</p>
+                <p className="text-xs text-slate-400 mt-4">Role-based access akan aktif setelah Google Auth dikonfigurasi (Fase 1).</p>
               </div>
             )}
 
@@ -264,18 +371,25 @@ export default function SettingsPage() {
                 <div className="space-y-4">
                   {[
                     {
-                      bu: "F&B / Buri Umah Group", code: "fnb", color: "border-orange-400",
-                      brands: ["Buri Umah", "Kisamen", "Samtaro Express", "Produksi Pusat", "Gudang", "Finance", "HR"],
+                      bu: "F&B / Buri Umah Group", code: "fnb", color: "border-orange-400", posLabel: "ESB",
+                      brands: ["Buri Umah", "Kisamen", "Samtaro Express", "Produksi Pusat", "Gudang F&B", "HR F&B"],
                     },
                     {
-                      bu: "NF / Nusa Fishing", code: "nf", color: "border-blue-400",
-                      brands: ["CS", "Iklan", "Marketplace", "Packing", "COD / Pengiriman", "Reseller / Affiliate", "Admin"],
+                      bu: "NF / Nusa Fishing", code: "nf", color: "border-blue-400", posLabel: "Moka POS",
+                      brands: ["CS", "Iklan", "Marketplace", "Packing", "COD / Pengiriman", "Reseller / Affiliate", "Admin NF"],
+                    },
+                    {
+                      bu: "General / Office", code: "general", color: "border-slate-400", posLabel: "Manual",
+                      brands: ["Office", "HR", "Legal", "IT"],
                     },
                   ].map(bu => (
                     <div key={bu.code} className={"card p-4 border-l-4 " + bu.color}>
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center justify-between mb-3">
                         <h3 className="font-bold text-slate-800">{bu.bu}</h3>
-                        <span className="badge badge-gray font-mono">{bu.code}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-500">POS: <strong>{bu.posLabel}</strong></span>
+                          <span className="badge badge-gray font-mono">{bu.code}</span>
+                        </div>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {bu.brands.map(b => (
@@ -295,6 +409,7 @@ export default function SettingsPage() {
                 </button>
               </div>
             )}
+
           </div>
         </div>
       </main>
