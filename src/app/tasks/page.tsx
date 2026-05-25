@@ -17,6 +17,18 @@ type Task = {
   deadline?: string;
   notes?: string;
   created_at?: string;
+  assignee_id?: string;
+  assignee_name?: string;
+  bu?: string;
+  brand?: string;
+};
+
+type Employee = {
+  id: string;
+  name: string;
+  phone?: string;
+  role: string;
+  business_unit: string;
 };
 
 type FormState = {
@@ -27,6 +39,7 @@ type FormState = {
   priority: "low" | "medium" | "high" | "urgent";
   deadline: string;
   notes: string;
+  assignee_id: string;
 };
 
 const BU_OPTIONS = ["FNB", "NF", "Personal", "General"];
@@ -92,19 +105,22 @@ const DEFAULT_FORM: FormState = {
   priority: "medium",
   deadline: "",
   notes: "",
+  assignee_id: "",
 };
-
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [filterBU, setFilterBU] = useState("All");
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
   const [error, setError] = useState("");
+  const [notifStatus, setNotifStatus] = useState<"idle"|"sending"|"sent"|"error">("idle");
 
   useEffect(() => {
     fetchTasks();
+    fetchEmployees();
   }, []);
 
   async function fetchTasks() {
@@ -115,6 +131,34 @@ export default function TasksPage() {
       .order("created_at", { ascending: false });
     if (!error && data) setTasks(data);
     setLoading(false);
+  }
+
+  async function fetchEmployees() {
+    const { data } = await supabase
+      .from("employees")
+      .select("id, name, phone, role, business_unit")
+      .eq("status", "active")
+      .order("name");
+    if (data) setEmployees(data);
+  }
+
+  async function sendFonnteNotification(phone: string, message: string, taskId: string, recipientName: string) {
+    try {
+      const res = await fetch("/api/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone,
+          message,
+          reference_type: "task",
+          reference_id: taskId,
+          recipient_name: recipientName,
+        }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -135,43 +179,105 @@ export default function TasksPage() {
       if (agentData) agentId = agentData.id;
     }
 
-    const { error: insertError } = await supabase.from("tasks").insert([{
-      title: form.title.trim(),
-      notes: form.notes.trim() || null,
-      status: form.status,
-      priority: form.priority,
-      deadline: form.deadline || null,
-      ai_agent_id: agentId,
-    }]);
+    const assigneeEmp = employees.find(e => e.id === form.assignee_id);
+
+    const { data: insertedTask, error: insertError } = await supabase
+      .from("tasks")
+      .insert([{
+        title: form.title.trim(),
+        notes: form.notes.trim() || null,
+        status: form.status,
+        priority: form.priority,
+        deadline: form.deadline || null,
+        ai_agent_id: agentId,
+        assignee_id: form.assignee_id || null,
+        assignee_name: assigneeEmp?.name ?? null,
+        bu: form.bu || null,
+        brand: form.brand || null,
+      }])
+      .select()
+      .single();
 
     if (insertError) {
       setError("Gagal menyimpan: " + insertError.message);
-    } else {
-      setShowForm(false);
-      setForm(DEFAULT_FORM);
-      fetchTasks();
+      setSaving(false);
+      return;
     }
+
+    if (assigneeEmp?.phone && insertedTask) {
+      setNotifStatus("sending");
+      const deadlineStr = form.deadline
+        ? ` Deadline: ${new Date(form.deadline).toLocaleString("id-ID")}.`
+        : "";
+      const message = `📋 *Task Baru Ditugaskan*\n\nHalo ${assigneeEmp.name},\n\nKamu mendapat task baru:\n*${form.title.trim()}*${deadlineStr}\n\nPrioritas: ${form.priority.toUpperCase()}\nStatus: To Do\n\nCek detail di NF3 Command Center.`;
+      const ok = await sendFonnteNotification(assigneeEmp.phone, message, insertedTask.id, assigneeEmp.name);
+      setNotifStatus(ok ? "sent" : "error");
+      setTimeout(() => setNotifStatus("idle"), 3000);
+    }
+
+    await supabase.from("activity_log").insert({
+      action: "create_task",
+      resource_type: "task",
+      resource_id: insertedTask?.id,
+      description: `Task baru dibuat: ${form.title.trim()}`,
+    }).catch(() => {});
+
+    setShowForm(false);
+    setForm(DEFAULT_FORM);
+    fetchTasks();
     setSaving(false);
   }
 
   async function updateStatus(id: string, status: Task["status"]) {
     await supabase.from("tasks").update({ status }).eq("id", id);
     setTasks(prev => prev.map(t => t.id === id ? { ...t, status } : t));
+
+    await supabase.from("activity_log").insert({
+      action: "update_task_status",
+      resource_type: "task",
+      resource_id: id,
+      description: `Status task diubah ke: ${status}`,
+    }).catch(() => {});
+
+    if (status === "done") {
+      const task = tasks.find(t => t.id === id);
+      if (task?.assignee_id) {
+        const emp = employees.find(e => e.id === task.assignee_id);
+        if (emp?.phone) {
+          const msg = `✅ *Task Selesai!*\n\nTask "${task.title}" telah ditandai sebagai DONE.\n\nGood job, ${emp.name}! 🎉`;
+          await sendFonnteNotification(emp.phone, msg, id, emp.name);
+        }
+      }
+    }
   }
+
+  const filteredTasks = tasks.filter(t => filterBU === "All" || t.bu === filterBU || !t.bu);
 
   const cols = STATUS_COLS.map(col => ({
     ...col,
-    tasks: tasks.filter(t => t.status === col.key),
+    tasks: filteredTasks.filter(t => t.status === col.key),
   }));
 
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
       <main className="main-content flex-1 p-6">
+        {notifStatus !== "idle" && (
+          <div className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-lg text-sm font-medium shadow-lg ${
+            notifStatus === "sending" ? "bg-blue-600 text-white" :
+            notifStatus === "sent" ? "bg-green-600 text-white" :
+            "bg-red-600 text-white"
+          }`}>
+            {notifStatus === "sending" && "📤 Mengirim notifikasi WA..."}
+            {notifStatus === "sent" && "✅ Notifikasi WA terkirim"}
+            {notifStatus === "error" && "⚠️ Gagal kirim notifikasi WA"}
+          </div>
+        )}
+
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="page-title">Task Center</h1>
-            <p className="page-subtitle">Kelola semua task dengan AI auto-assign</p>
+            <p className="page-subtitle">Kelola semua task dengan AI auto-assign &amp; notifikasi WA</p>
           </div>
           <button onClick={() => setShowForm(true)} className="btn-primary">
             + Tambah Task
@@ -217,12 +323,20 @@ export default function TasksPage() {
                           {task.priority}
                         </span>
                       </div>
+                      {task.assignee_name && (
+                        <p className="text-xs text-blue-600 mb-1 font-medium">
+                          👤 {task.assignee_name}
+                        </p>
+                      )}
+                      {task.bu && (
+                        <p className="text-xs text-gray-400 mb-1">BU: {task.bu}{task.brand ? ` · ${task.brand}` : ""}</p>
+                      )}
                       {task.notes && (
                         <p className="text-xs text-gray-500 mb-2 line-clamp-2">{task.notes}</p>
                       )}
                       {task.deadline && (
                         <p className="text-xs text-gray-400 mb-2">
-                          Deadline: {new Date(task.deadline).toLocaleDateString("id-ID")}
+                          ⏰ {new Date(task.deadline).toLocaleDateString("id-ID")}
                         </p>
                       )}
                       <div className="flex gap-1 flex-wrap">
@@ -253,7 +367,7 @@ export default function TasksPage() {
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-bold text-gray-800">Tambah Task Baru</h2>
-                  <button onClick={() => { setShowForm(false); setError(""); }} className="text-gray-400 hover:text-gray-600 text-xl font-bold">x</button>
+                  <button onClick={() => { setShowForm(false); setError(""); }} className="text-gray-400 hover:text-gray-600 text-xl font-bold">×</button>
                 </div>
                 {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">{error}</div>}
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -266,9 +380,35 @@ export default function TasksPage() {
                       onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                     />
                     {form.title && (
-                      <p className="text-xs text-blue-600 mt-1">AI Agent: {detectAgent(form.title)}</p>
+                      <p className="text-xs text-blue-600 mt-1">🤖 AI Agent: {detectAgent(form.title)}</p>
                     )}
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Ditugaskan ke {employees.length > 0 && <span className="text-xs text-gray-400">(opsional, WA otomatis terkirim)</span>}
+                    </label>
+                    <select
+                      className="select-field"
+                      value={form.assignee_id}
+                      onChange={e => setForm(f => ({ ...f, assignee_id: e.target.value }))}
+                    >
+                      <option value="">— Pilih karyawan —</option>
+                      {employees.map(emp => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.name} ({emp.role} · {emp.business_unit})
+                          {emp.phone ? " 📱" : ""}
+                        </option>
+                      ))}
+                    </select>
+                    {form.assignee_id && employees.find(e => e.id === form.assignee_id)?.phone && (
+                      <p className="text-xs text-green-600 mt-1">✅ Notifikasi WA akan dikirim saat task disimpan</p>
+                    )}
+                    {form.assignee_id && !employees.find(e => e.id === form.assignee_id)?.phone && (
+                      <p className="text-xs text-orange-500 mt-1">⚠️ Karyawan ini tidak punya nomor HP, notifikasi tidak akan dikirim</p>
+                    )}
+                  </div>
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Business Unit</label>
@@ -284,6 +424,7 @@ export default function TasksPage() {
                       </select>
                     </div>
                   </div>
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
@@ -304,6 +445,7 @@ export default function TasksPage() {
                       </select>
                     </div>
                   </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Deadline</label>
                     <input type="datetime-local" className="input-field" value={form.deadline} onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))} />
