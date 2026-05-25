@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
+const SUPER_ADMIN_EMAILS = ['sampriatna@gmail.com']
+
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
@@ -15,15 +17,29 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error && data.user) {
       const user = data.user
+      const role = SUPER_ADMIN_EMAILS.includes(user.email ?? '') ? 'super_admin' : 'pending'
+
+      // Upsert user_roles — insert on first login, skip update if already assigned
+      try {
+        await supabase.from('user_roles').upsert(
+          { user_id: user.id, role, email: user.email },
+          { onConflict: 'user_id', ignoreDuplicates: true }
+        )
+      } catch (_e) {
+        // non-fatal
+      }
+
+      // Log activity
       try {
         await supabase.from('activity_log').insert({
-          action: 'user_registered',
+          action: 'user_login',
           resource_type: 'auth',
-          description: `User baru mendaftar: ${user.email}`,
+          description: `User login: ${user.email}`,
         })
       } catch (_e) {
-        // log insert failure is non-fatal
+        // non-fatal
       }
+
       return NextResponse.redirect(`${origin}/pending`)
     }
     if (!error) {
