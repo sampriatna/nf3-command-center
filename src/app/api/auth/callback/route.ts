@@ -1,49 +1,42 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET(req: NextRequest) {
-  const { searchParams, origin } = new URL(req.url);
-  const code = searchParams.get("code");
-  if (!code) return NextResponse.redirect(`${origin}/login?error=no_code`);
+export async function GET(request: NextRequest) {
+  const { searchParams, origin } = new URL(request.url)
+  const code = searchParams.get('code')
+  const next = searchParams.get('next') ?? '/'
 
-  const anonClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-  const { data, error } = await anonClient.auth.exchangeCodeForSession(code);
-  if (error || !data.user) return NextResponse.redirect(`${origin}/login?error=auth_failed`);
+  if (code) {
+    const cookieStore = await cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll() },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          },
+        },
+      }
+    )
 
-  const user = data.user;
-  const svcClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
-  const { data: existing, error: roleError } = await svcClient
-    .from("user_roles").select("role").eq("user_id", user.id).single();
-
-  if (roleError && roleError.code === "PGRST116") {
-    await svcClient.from("user_roles").insert({
-      user_id: user.id, email: user.email,
-      name: user.user_metadata?.full_name ?? user.email, role: "pending",
-    });
-    await svcClient.from("activity_log").insert({
-      user_id: user.id, user_email: user.email,
-      user_name: user.user_metadata?.full_name ?? user.email,
-      action: "user_registered", resource_type: "auth",
-      description: `User baru mendaftar: ${user.email}`,
-    }).catch(() => {});
-    return NextResponse.redirect(`${origin}/pending`);
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    if (!error) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        await supabase.from('activity_log').insert({
+          action: 'user_registered', resource_type: 'auth',
+          description: `User baru mendaftar: ${user.email}`,
+        })
+        return NextResponse.redirect(`${origin}/pending`)
+      }
+      return NextResponse.redirect(`${origin}${next}`)
+    }
   }
 
-  if (existing?.role === "pending") return NextResponse.redirect(`${origin}/pending`);
-
-  await svcClient.from("activity_log").insert({
-    user_id: user.id, user_email: user.email,
-    user_name: user.user_metadata?.full_name ?? user.email,
-    action: "user_login", resource_type: "auth",
-    description: `Login: ${user.email}`,
-  }).catch(() => {});
-
-  return NextResponse.redirect(`${origin}/dashboard`);
+  return NextResponse.redirect(`${origin}/login?error=auth_callback_failed`)
 }
