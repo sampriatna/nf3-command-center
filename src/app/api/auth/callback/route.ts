@@ -1,5 +1,4 @@
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
@@ -8,32 +7,26 @@ export async function GET(request: NextRequest) {
   const next = searchParams.get('next') ?? '/'
 
   if (code) {
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
+    const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() { return cookieStore.getAll() },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          },
-        },
-      }
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-    if (!error) {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+    if (!error && data.user) {
+      const user = data.user
+      try {
         await supabase.from('activity_log').insert({
-          action: 'user_registered', resource_type: 'auth',
+          action: 'user_registered',
+          resource_type: 'auth',
           description: `User baru mendaftar: ${user.email}`,
         })
-        return NextResponse.redirect(`${origin}/pending`)
+      } catch (_e) {
+        // log insert failure is non-fatal
       }
+      return NextResponse.redirect(`${origin}/pending`)
+    }
+    if (!error) {
       return NextResponse.redirect(`${origin}${next}`)
     }
   }
