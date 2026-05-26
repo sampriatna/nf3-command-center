@@ -24,14 +24,12 @@ export default function PendingPage() {
 
       // Super admins skip DB check - redirect immediately
       if (SUPER_ADMIN_EMAILS.includes(userEmail ?? "")) {
-        supabase
+        void supabase
           .from("user_roles")
           .upsert(
             { user_id: userId, role: "super_admin", email: userEmail },
             { onConflict: "user_id", ignoreDuplicates: false }
-          )
-          .then(() => {})
-          .catch(() => {});
+          );
 
         if (mounted) {
           setStatus("Access granted! Redirecting to dashboard...");
