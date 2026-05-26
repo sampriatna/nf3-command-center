@@ -1,87 +1,103 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+
+const SUPER_ADMIN_EMAILS = ["sampriatna@gmail.com"];
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  { auth: { flowType: "implicit" } }
 );
 
 export default function PendingPage() {
-  const [user, setUser] = useState<{ email: string; name: string } | null>(null);
-  const [checking, setChecking] = useState(true);
+  const router = useRouter();
+  const [status, setStatus] = useState("Checking your access...");
 
-  useEffect(() => { checkStatus(); }, []);
+  useEffect(() => {
+    let mounted = true;
 
-  async function checkStatus() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { window.location.href = "/login"; return; }
-    const { data: roleData } = await supabase.from("user_roles").select("role").eq("user_id", user.id).single();
-    if (roleData && roleData.role !== "pending") { window.location.href = "/dashboard"; return; }
-    setUser({ email: user.email ?? "", name: user.user_metadata?.full_name ?? user.email ?? "" });
-    setChecking(false);
-  }
+    async function checkAccess() {
+      // Wait briefly for Supabase to parse hash tokens (implicit flow)
+      await new Promise((r) => setTimeout(r, 500));
 
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    window.location.href = "/login";
-  }
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-  if (checking) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-white text-center">
-          <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-gray-400">Memeriksa status akses...</p>
-        </div>
-      </div>
-    );
-  }
+      if (!session?.user) {
+        if (mounted) router.replace("/login");
+        return;
+      }
+
+      const user = session.user;
+
+      // Ensure user_roles record exists (handles implicit flow where callback can't do it)
+      const role = SUPER_ADMIN_EMAILS.includes(user.email ?? "")
+        ? "super_admin"
+        : "pending";
+
+      try {
+        await supabase
+          .from("user_roles")
+          .upsert(
+            { user_id: user.id, role, email: user.email },
+            { onConflict: "user_id", ignoreDuplicates: true }
+          );
+      } catch (_e) {
+        // non-fatal
+      }
+
+      // Now fetch the actual role (may have been updated by admin)
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .single();
+
+      const userRole = roleData?.role ?? "pending";
+
+      if (!mounted) return;
+
+      if (userRole === "pending") {
+        setStatus("Your account is pending approval. Please wait for an administrator to approve your access.");
+      } else {
+        setStatus("Access granted! Redirecting to dashboard...");
+        router.replace("/dashboard");
+      }
+    }
+
+    checkAccess();
+    return () => {
+      mounted = false;
+    };
+  }, [router]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-yellow-100 rounded-2xl mb-4">
-          <span className="text-3xl">⏳</span>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex items-center justify-center p-4">
+      <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 w-full max-w-md border border-white/20 shadow-2xl text-center">
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-yellow-500/20 rounded-full mb-4">
+          <svg
+            className="w-8 h-8 text-yellow-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
         </div>
-        <h1 className="text-xl font-bold text-gray-900 mb-2">Menunggu Persetujuan</h1>
-        <p className="text-gray-500 text-sm mb-6">
-          Akun <strong>{user?.email}</strong> sudah terdaftar dan sedang menunggu persetujuan dari Owner atau Super Admin.
-        </p>
-        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6 text-left">
-          <div className="flex items-start gap-3">
-            <span className="text-yellow-500 text-lg mt-0.5">ℹ️</span>
-            <div>
-              <p className="text-sm font-semibold text-yellow-800">Status: Pending Approval</p>
-              <p className="text-xs text-yellow-600 mt-1">Admin akan menugaskan role dan Business Unit. Anda akan diarahkan otomatis ke dashboard setelah disetujui.</p>
-            </div>
-          </div>
+        <h1 className="text-2xl font-bold text-white mb-2">Account Pending</h1>
+        <p className="text-blue-200">{status}</p>
+        <div className="mt-6 flex justify-center">
+          <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
         </div>
-        <div className="text-left mb-6 space-y-2">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Langkah selanjutnya:</p>
-          <div className="flex items-center gap-2 text-sm text-gray-600">
-            <span className="w-5 h-5 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">✓</span>
-            Login dengan Google berhasil
-          </div>
-          <div className="flex items-center gap-2 text-sm text-gray-600">
-            <span className="w-5 h-5 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">2</span>
-            Admin menyetujui & assign role
-          </div>
-          <div className="flex items-center gap-2 text-sm text-gray-400">
-            <span className="w-5 h-5 bg-gray-100 text-gray-400 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">3</span>
-            Akses dashboard aktif
-          </div>
-        </div>
-        <div className="flex flex-col gap-2">
-          <button onClick={checkStatus} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-4 rounded-xl transition-colors text-sm">
-            🔄 Cek Status Lagi
-          </button>
-          <button onClick={handleLogout} className="w-full bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 font-medium py-2.5 px-4 rounded-xl transition-colors text-sm">
-            Keluar
-          </button>
-        </div>
-        <p className="text-xs text-gray-400 mt-4">Butuh akses segera? Hubungi Owner di WhatsApp.</p>
       </div>
     </div>
   );
