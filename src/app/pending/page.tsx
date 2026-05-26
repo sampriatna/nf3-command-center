@@ -22,7 +22,7 @@ export default function PendingPage() {
     async function handleSession(userId: string, userEmail: string | undefined) {
       if (!mounted) return;
 
-      // Super admins bypass DB check — redirect immediately
+      // Super admins skip DB check - redirect immediately
       if (SUPER_ADMIN_EMAILS.includes(userEmail ?? "")) {
         supabase
           .from("user_roles")
@@ -40,7 +40,6 @@ export default function PendingPage() {
         return;
       }
 
-      // For other users: upsert as pending then check actual DB role
       try {
         await supabase
           .from("user_roles")
