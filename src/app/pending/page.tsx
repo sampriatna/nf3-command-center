@@ -19,23 +19,10 @@ export default function PendingPage() {
   useEffect(() => {
     let mounted = true;
 
-    async function checkAccess() {
-      // Wait briefly for Supabase to parse hash tokens (implicit flow)
-      await new Promise((r) => setTimeout(r, 500));
+    async function handleSession(userId: string, userEmail: string | undefined) {
+      if (!mounted) return;
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.user) {
-        if (mounted) router.replace("/login");
-        return;
-      }
-
-      const user = session.user;
-
-      // Ensure user_roles record exists (handles implicit flow where callback can't do it)
-      const role = SUPER_ADMIN_EMAILS.includes(user.email ?? "")
+      const role = SUPER_ADMIN_EMAILS.includes(userEmail ?? "")
         ? "super_admin"
         : "pending";
 
@@ -43,23 +30,20 @@ export default function PendingPage() {
         await supabase
           .from("user_roles")
           .upsert(
-            { user_id: user.id, role, email: user.email },
+            { user_id: userId, role, email: userEmail },
             { onConflict: "user_id", ignoreDuplicates: true }
           );
-      } catch (_e) {
-        // non-fatal
-      }
+      } catch (_e) {}
 
-      // Now fetch the actual role (may have been updated by admin)
       const { data: roleData } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .single();
 
-      const userRole = roleData?.role ?? "pending";
-
       if (!mounted) return;
+
+      const userRole = roleData?.role ?? "pending";
 
       if (userRole === "pending") {
         setStatus("Your account is pending approval. Please wait for an administrator to approve your access.");
@@ -69,9 +53,27 @@ export default function PendingPage() {
       }
     }
 
-    checkAccess();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!mounted) return;
+
+        if (event === "SIGNED_IN" && session?.user) {
+          await handleSession(session.user.id, session.user.email);
+        } else if (event === "INITIAL_SESSION") {
+          if (session?.user) {
+            await handleSession(session.user.id, session.user.email);
+          } else {
+            if (mounted) router.replace("/login");
+          }
+        } else if (event === "SIGNED_OUT") {
+          if (mounted) router.replace("/login");
+        }
+      }
+    );
+
     return () => {
       mounted = false;
+      subscription.unsubscribe();
     };
   }, [router]);
 
