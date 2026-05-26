@@ -22,15 +22,30 @@ export default function PendingPage() {
     async function handleSession(userId: string, userEmail: string | undefined) {
       if (!mounted) return;
 
-      const role = SUPER_ADMIN_EMAILS.includes(userEmail ?? "")
-        ? "super_admin"
-        : "pending";
+      // Super admins bypass DB check — redirect immediately
+      if (SUPER_ADMIN_EMAILS.includes(userEmail ?? "")) {
+        supabase
+          .from("user_roles")
+          .upsert(
+            { user_id: userId, role: "super_admin", email: userEmail },
+            { onConflict: "user_id", ignoreDuplicates: false }
+          )
+          .then(() => {})
+          .catch(() => {});
 
+        if (mounted) {
+          setStatus("Access granted! Redirecting to dashboard...");
+          router.replace("/dashboard");
+        }
+        return;
+      }
+
+      // For other users: upsert as pending then check actual DB role
       try {
         await supabase
           .from("user_roles")
           .upsert(
-            { user_id: userId, role, email: userEmail },
+            { user_id: userId, role: "pending", email: userEmail },
             { onConflict: "user_id", ignoreDuplicates: true }
           );
       } catch (_e) {}
@@ -45,15 +60,19 @@ export default function PendingPage() {
 
       const userRole = roleData?.role ?? "pending";
 
-      if (userRole === "pending") {
-        setStatus("Your account is pending approval. Please wait for an administrator to approve your access.");
-      } else {
+      if (userRole !== "pending") {
         setStatus("Access granted! Redirecting to dashboard...");
         router.replace("/dashboard");
+      } else {
+        setStatus(
+          "Your account is pending approval. Please wait for an administrator to approve your access."
+        );
       }
     }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
 
