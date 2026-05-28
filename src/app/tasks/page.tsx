@@ -209,7 +209,7 @@ export default function TasksPage() {
       const deadlineStr = form.deadline
         ? ` Deadline: ${new Date(form.deadline).toLocaleString("id-ID")}.`
         : "";
-      const message = `ð *Task Baru Ditugaskan*\n\nHalo ${assigneeEmp.name},\n\nKamu mendapat task baru:\n*${form.title.trim()}*${deadlineStr}\n\nPrioritas: ${form.priority.toUpperCase()}\nStatus: To Do\n\nCek detail di NF3 Command Center.`;
+      const message = `Ã°ÂÂÂ *Task Baru Ditugaskan*\n\nHalo ${assigneeEmp.name},\n\nKamu mendapat task baru:\n*${form.title.trim()}*${deadlineStr}\n\nPrioritas: ${form.priority.toUpperCase()}\nStatus: To Do\n\nCek detail di NF3 Command Center.`;
       const ok = await sendFonnteNotification(assigneeEmp.phone, message, insertedTask.id, assigneeEmp.name);
       setNotifStatus(ok ? "sent" : "error");
       setTimeout(() => setNotifStatus("idle"), 3000);
@@ -252,7 +252,7 @@ export default function TasksPage() {
       if (task?.assignee_id) {
         const emp = employees.find(e => e.id === task.assignee_id);
         if (emp?.phone) {
-          const msg = `â *Task Selesai!*\n\nTask "${task.title}" telah ditandai sebagai DONE.\n\nGood job, ${emp.name}! ð`;
+          const msg = `Ã¢ÂÂ *Task Selesai!*\n\nTask "${task.title}" telah ditandai sebagai DONE.\n\nGood job, ${emp.name}! Ã°ÂÂÂ`;
           await sendFonnteNotification(emp.phone, msg, id, emp.name);
         }
       }
@@ -276,9 +276,9 @@ export default function TasksPage() {
             notifStatus === "sent" ? "bg-green-600 text-white" :
             "bg-red-600 text-white"
           }`}>
-            {notifStatus === "sending" && "ð¤ Mengirim notifikasi WA..."}
-            {notifStatus === "sent" && "â Notifikasi WA terkirim"}
-            {notifStatus === "error" && "â ï¸ Gagal kirim notifikasi WA"}
+            {notifStatus === "sending" && "Ã°ÂÂÂ¤ Mengirim notifikasi WA..."}
+            {notifStatus === "sent" && "Ã¢ÂÂ Notifikasi WA terkirim"}
+            {notifStatus === "error" && "Ã¢ÂÂ Ã¯Â¸Â Gagal kirim notifikasi WA"}
           </div>
         )}
 
@@ -333,18 +333,18 @@ export default function TasksPage() {
                       </div>
                       {task.assignee_name && (
                         <p className="text-xs text-blue-600 mb-1 font-medium">
-                          ð¤ {task.assignee_name}
+                          Ã°ÂÂÂ¤ {task.assignee_name}
                         </p>
                       )}
                       {task.bu && (
-                        <p className="text-xs text-gray-400 mb-1">BU: {task.bu}{task.brand ? ` Â· ${task.brand}` : ""}</p>
+                        <p className="text-xs text-gray-400 mb-1">BU: {task.bu}{task.brand ? ` ÃÂ· ${task.brand}` : ""}</p>
                       )}
                       {task.notes && (
                         <p className="text-xs text-gray-500 mb-2 line-clamp-2">{task.notes}</p>
                       )}
                       {task.deadline && (
                         <p className="text-xs text-gray-400 mb-2">
-                          â° {new Date(task.deadline).toLocaleDateString("id-ID")}
+                          Ã¢ÂÂ° {new Date(task.deadline).toLocaleDateString("id-ID")}
                         </p>
                       )}
                       <div className="flex gap-1 flex-wrap">
@@ -375,7 +375,7 @@ export default function TasksPage() {
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-bold text-gray-800">Tambah Task Baru</h2>
-                  <button onClick={() => { setShowForm(false); setError(""); }} className="text-gray-400 hover:text-gray-600 text-xl font-bold">Ã</button>
+                  <button onClick={() => { setShowForm(false); setError(""); }} className="text-gray-400 hover:text-gray-600 text-xl font-bold">ÃÂ</button>
                 </div>
                 {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg mb-4">{error}</div>}
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -388,7 +388,7 @@ export default function TasksPage() {
                       onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                     />
                     {form.title && (
-                      <p className="text-xs text-blue-600 mt-1">ð¤ AI Agent: {detectAgent(form.title)}</p>
+                      <p className="text-xs text-blue-600 mt-1">Ã°ÂÂ¤Â AI Agent: {detectAgent(form.title)}</p>
                     )}
                   </div>
 
@@ -401,19 +401,19 @@ export default function TasksPage() {
                       value={form.assignee_id}
                       onChange={e => setForm(f => ({ ...f, assignee_id: e.target.value }))}
                     >
-                      <option value="">â Pilih karyawan â</option>
+                      <option value="">Ã¢ÂÂ Pilih karyawan Ã¢ÂÂ</option>
                       {employees.map(emp => (
                         <option key={emp.id} value={emp.id}>
-                          {emp.name} ({emp.role} Â· {emp.business_unit})
-                          {emp.phone ? " ð±" : ""}
+                          {emp.name} ({emp.role} ÃÂ· {emp.business_unit})
+                          {emp.phone ? " Ã°ÂÂÂ±" : ""}
                         </option>
                       ))}
                     </select>
                     {form.assignee_id && employees.find(e => e.id === form.assignee_id)?.phone && (
-                      <p className="text-xs text-green-600 mt-1">â Notifikasi WA akan dikirim saat task disimpan</p>
+                      <p className="text-xs text-green-600 mt-1">Ã¢ÂÂ Notifikasi WA akan dikirim saat task disimpan</p>
                     )}
                     {form.assignee_id && !employees.find(e => e.id === form.assignee_id)?.phone && (
-                      <p className="text-xs text-orange-500 mt-1">â ï¸ Karyawan ini tidak punya nomor HP, notifikasi tidak akan dikirim</p>
+                      <p className="text-xs text-orange-500 mt-1">Ã¢ÂÂ Ã¯Â¸Â Karyawan ini tidak punya nomor HP, notifikasi tidak akan dikirim</p>
                     )}
                   </div>
 
