@@ -6,10 +6,11 @@ import { createClient } from "@supabase/supabase-js";
 
 const SUPER_ADMIN_EMAILS = ["sampriatna@gmail.com"];
 
+// detectSessionInUrl: true ensures Supabase client auto-exchanges ?code= param (PKCE)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  { auth: { flowType: "pkce" } }
+  { auth: { flowType: "pkce", detectSessionInUrl: true, persistSession: true } }
 );
 
 export default function PendingPage() {
@@ -19,42 +20,29 @@ export default function PendingPage() {
   useEffect(() => {
     let mounted = true;
 
-    async function checkAccess() {
-      const { data: { session } } = await supabase.auth.getSession();
-
+    async function handleUser(userId: string, userEmail: string | undefined) {
       if (!mounted) return;
 
-      if (!session?.user) {
-        // No session at all — go to login
-        router.replace("/login");
-        return;
-      }
-
-      const { email, id } = session.user;
-
-      // Super admin — redirect immediately
-      if (SUPER_ADMIN_EMAILS.includes(email ?? "")) {
+      if (SUPER_ADMIN_EMAILS.includes(userEmail ?? "")) {
         void supabase.from("user_roles").upsert(
-          { user_id: id, role: "super_admin", email },
+          { user_id: userId, role: "super_admin", email: userEmail },
           { onConflict: "user_id", ignoreDuplicates: false }
         );
         if (mounted) router.replace("/dashboard");
         return;
       }
 
-      // Upsert pending role for new users
       try {
         await supabase.from("user_roles").upsert(
-          { user_id: id, role: "pending", email },
+          { user_id: userId, role: "pending", email: userEmail },
           { onConflict: "user_id", ignoreDuplicates: true }
         );
       } catch (_e) {}
 
-      // Check actual role
       const { data: roleData } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", id)
+        .eq("user_id", userId)
         .single();
 
       if (!mounted) return;
@@ -67,16 +55,17 @@ export default function PendingPage() {
       }
     }
 
-    // Try immediately — session should exist after PKCE callback
-    checkAccess();
-
-    // Also listen for auth state changes as fallback
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    // onAuthStateChange fires SIGNED_IN after Supabase detects & exchanges ?code= in URL
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
-      if (event === "SIGNED_IN" && session?.user) {
-        checkAccess();
+      if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.user) {
+        await handleUser(session.user.id, session.user.email);
       } else if (event === "SIGNED_OUT") {
         router.replace("/login");
+      } else if (event === "INITIAL_SESSION" && !session) {
+        // No session and no code in URL — not coming from OAuth
+        const hasCode = typeof window !== "undefined" && window.location.search.includes("code=");
+        if (!hasCode) router.replace("/login");
       }
     });
 
