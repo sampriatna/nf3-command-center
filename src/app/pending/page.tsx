@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
+const SUPER_ADMIN_EMAILS = ["sampriatna@gmail.com"];
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -17,30 +19,71 @@ export default function PendingPage() {
   useEffect(() => {
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    async function checkAccess() {
+      const { data: { session } } = await supabase.auth.getSession();
+
       if (!mounted) return;
+
       if (!session?.user) {
+        // No session at all — go to login
         router.replace("/login");
         return;
       }
-      // Check role in DB
-      supabase
+
+      const { email, id } = session.user;
+
+      // Super admin — redirect immediately
+      if (SUPER_ADMIN_EMAILS.includes(email ?? "")) {
+        void supabase.from("user_roles").upsert(
+          { user_id: id, role: "super_admin", email },
+          { onConflict: "user_id", ignoreDuplicates: false }
+        );
+        if (mounted) router.replace("/dashboard");
+        return;
+      }
+
+      // Upsert pending role for new users
+      try {
+        await supabase.from("user_roles").upsert(
+          { user_id: id, role: "pending", email },
+          { onConflict: "user_id", ignoreDuplicates: true }
+        );
+      } catch (_e) {}
+
+      // Check actual role
+      const { data: roleData } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", session.user.id)
-        .single()
-        .then(({ data }) => {
-          if (!mounted) return;
-          const role = data?.role ?? "pending";
-          if (role !== "pending") {
-            router.replace("/dashboard");
-          } else {
-            setStatus("Your account is pending approval. Please wait for an administrator to approve your access.");
-          }
-        });
+        .eq("user_id", id)
+        .single();
+
+      if (!mounted) return;
+
+      const role = roleData?.role ?? "pending";
+      if (role !== "pending") {
+        router.replace("/dashboard");
+      } else {
+        setStatus("Your account is pending approval. Please wait for an administrator to approve your access.");
+      }
+    }
+
+    // Try immediately — session should exist after PKCE callback
+    checkAccess();
+
+    // Also listen for auth state changes as fallback
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return;
+      if (event === "SIGNED_IN" && session?.user) {
+        checkAccess();
+      } else if (event === "SIGNED_OUT") {
+        router.replace("/login");
+      }
     });
 
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [router]);
 
   return (
