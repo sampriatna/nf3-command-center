@@ -4,12 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
-const SUPER_ADMIN_EMAILS = ["sampriatna@gmail.com"];
-
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  { auth: { flowType: "implicit" } }
+  { auth: { flowType: "pkce" } }
 );
 
 export default function PendingPage() {
@@ -19,79 +17,30 @@ export default function PendingPage() {
   useEffect(() => {
     let mounted = true;
 
-    async function handleSession(userId: string, userEmail: string | undefined) {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return;
-
-      if (SUPER_ADMIN_EMAILS.includes(userEmail ?? "")) {
-        void supabase
-          .from("user_roles")
-          .upsert(
-            { user_id: userId, role: "super_admin", email: userEmail },
-            { onConflict: "user_id", ignoreDuplicates: false }
-          );
-        if (mounted) {
-          setStatus("Access granted! Redirecting to dashboard...");
-          router.replace("/dashboard");
-        }
+      if (!session?.user) {
+        router.replace("/login");
         return;
       }
-
-      try {
-        await supabase
-          .from("user_roles")
-          .upsert(
-            { user_id: userId, role: "pending", email: userEmail },
-            { onConflict: "user_id", ignoreDuplicates: true }
-          );
-      } catch (_e) {}
-
-      const { data: roleData } = await supabase
+      // Check role in DB
+      supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", userId)
-        .single();
-
-      if (!mounted) return;
-
-      const userRole = roleData?.role ?? "pending";
-      if (userRole !== "pending") {
-        setStatus("Access granted! Redirecting to dashboard...");
-        router.replace("/dashboard");
-      } else {
-        setStatus("Your account is pending approval. Please wait for an administrator to approve your access.");
-      }
-    }
-
-    // Fallback: if no session after 15s, go to login
-    const timeout = setTimeout(() => {
-      if (mounted) router.replace("/login");
-    }, 15000);
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) return;
-        if (event === "SIGNED_IN" && session?.user) {
-          clearTimeout(timeout);
-          await handleSession(session.user.id, session.user.email);
-        } else if (event === "INITIAL_SESSION") {
-          if (session?.user) {
-            clearTimeout(timeout);
-            await handleSession(session.user.id, session.user.email);
+        .eq("user_id", session.user.id)
+        .single()
+        .then(({ data }) => {
+          if (!mounted) return;
+          const role = data?.role ?? "pending";
+          if (role !== "pending") {
+            router.replace("/dashboard");
+          } else {
+            setStatus("Your account is pending approval. Please wait for an administrator to approve your access.");
           }
-          // No user in INITIAL_SESSION = implicit flow still parsing hash,
-          // wait for SIGNED_IN event which fires right after
-        } else if (event === "SIGNED_OUT") {
-          clearTimeout(timeout);
-          if (mounted) router.replace("/login");
-        }
-      }
-    );
+        });
+    });
 
-    return () => {
-      mounted = false;
-      clearTimeout(timeout);
-      subscription.unsubscribe();
-    };
+    return () => { mounted = false; };
   }, [router]);
 
   return (
