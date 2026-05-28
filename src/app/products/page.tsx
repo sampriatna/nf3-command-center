@@ -72,8 +72,10 @@ export default function ProductsPage() {
     setMokaSyncing(true);
     setMokaSyncResult(null);
     try {
-      const res = await fetch("/api/moka/sync", {
+      const res = await fetch("/api/moka/items/sync", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (res.ok && data.success) {
