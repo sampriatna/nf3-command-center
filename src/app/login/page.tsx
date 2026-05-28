@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  { auth: { flowType: "implicit" } }
+  { auth: { flowType: "pkce" } }
 );
 
 export default function LoginPage() {
@@ -37,13 +37,11 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold text-white">NF3 Command Center</h1>
           <p className="text-blue-200 mt-2">Sign in to access your dashboard</p>
         </div>
-
         {error && (
           <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 mb-4">
             <p className="text-red-200 text-sm">{error}</p>
           </div>
         )}
-
         <button
           onClick={handleGoogleLogin}
           disabled={loading}
@@ -61,7 +59,6 @@ export default function LoginPage() {
           )}
           {loading ? "Signing in..." : "Continue with Google"}
         </button>
-
         <p className="text-center text-blue-200/60 text-xs mt-6">
           Access restricted to authorized team members
         </p>
