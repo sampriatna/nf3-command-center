@@ -46,15 +46,11 @@ export default function ProductsPage() {
   const [search, setSearch] = useState("");
 
   const [showMokaModal, setShowMokaModal] = useState(false);
-  const [mokaKey, setMokaKey] = useState("");
-  const [mokaOutletId, setMokaOutletId] = useState("");
   const [mokaSyncing, setMokaSyncing] = useState(false);
   const [mokaSyncResult, setMokaSyncResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Product | null>(null);
-  const [deleteKey, setDeleteKey] = useState("");
-  const [deleteOutletId, setDeleteOutletId] = useState("");
   const [deleteResult, setDeleteResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
@@ -73,14 +69,11 @@ export default function ProductsPage() {
   }
 
   async function handleMokaSync() {
-    if (!mokaKey || !mokaOutletId) return;
     setMokaSyncing(true);
     setMokaSyncResult(null);
     try {
-      const res = await fetch("/api/moka/items/sync", {
+      const res = await fetch("/api/moka/sync", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey: mokaKey, outletId: mokaOutletId }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -98,9 +91,7 @@ export default function ProductsPage() {
 
   async function handleDeleteFromMoka() {
     if (!deleteConfirm) return;
-    const key = deleteKey || mokaKey;
-    const outlet = deleteOutletId || mokaOutletId;
-    if (!key || !outlet || !deleteConfirm.moka_item_id) return;
+    if (!deleteConfirm.moka_item_id) return;
 
     setDeletingId(deleteConfirm.id);
     setDeleteResult(null);
@@ -109,8 +100,6 @@ export default function ProductsPage() {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          apiKey: key,
-          outletId: outlet,
           itemId: deleteConfirm.moka_item_id,
         }),
       });
@@ -289,16 +278,6 @@ export default function ProductsPage() {
                 <h2 className="text-lg font-bold">Sync Produk dari Moka POS</h2>
               </div>
               <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">API Key Moka</label>
-                  <input type="password" className="input-field font-mono text-sm" placeholder="Masukkan Moka API Key..."
-                    value={mokaKey} onChange={e => setMokaKey(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Outlet ID</label>
-                  <input type="text" className="input-field font-mono text-sm" placeholder="Outlet ID dari Moka..."
-                    value={mokaOutletId} onChange={e => setMokaOutletId(e.target.value)} />
-                </div>
                 {mokaSyncResult && (
                   <div className={"p-3 rounded-lg text-sm font-medium " + (mokaSyncResult.success ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200")}>
                     {mokaSyncResult.success ? "Berhasil: " : "Gagal: "}{mokaSyncResult.message}
@@ -311,7 +290,7 @@ export default function ProductsPage() {
               <div className="flex gap-3 mt-5">
                 <button className="btn-secondary flex-1" onClick={() => setShowMokaModal(false)}>Tutup</button>
                 <button className="btn-primary flex-1 disabled:opacity-40"
-                  disabled={!mokaKey || !mokaOutletId || mokaSyncing}
+                  disabled={mokaSyncing}
                   onClick={handleMokaSync}>
                   {mokaSyncing ? "Sedang sync..." : "Sync Sekarang"}
                 </button>
@@ -330,16 +309,6 @@ export default function ProductsPage() {
                 Produk <strong>{deleteConfirm.name}</strong> akan dihapus permanen dari Moka POS dan database.
               </p>
               <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">API Key Moka</label>
-                  <input type="password" className="input-field font-mono text-sm" placeholder="Masukkan Moka API Key..."
-                    value={deleteKey || mokaKey} onChange={e => setDeleteKey(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Outlet ID</label>
-                  <input type="text" className="input-field font-mono text-sm" placeholder="Outlet ID dari Moka..."
-                    value={deleteOutletId || mokaOutletId} onChange={e => setDeleteOutletId(e.target.value)} />
-                </div>
                 {deleteResult && (
                   <div className={"p-3 rounded-lg text-sm font-medium " + (deleteResult.success ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200")}>
                     {deleteResult.success ? "Berhasil: " : "Gagal: "}{deleteResult.message}
