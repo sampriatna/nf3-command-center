@@ -8,45 +8,62 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code')
   const error = searchParams.get('error')
 
-  // Handle OAuth errors from provider
   if (error) {
     return NextResponse.redirect(`${origin}/login?error=${error}`)
   }
 
-  // Implicit flow: no code param, tokens are in URL hash (client-side only)
-  // Just redirect to /pending - the client will parse the hash and set the session
   if (!code) {
-    return NextResponse.redirect(`${origin}/pending`)
+    return NextResponse.redirect(`${origin}/login`)
   }
 
-  // PKCE flow: exchange code for session
+  // PKCE: exchange code for session server-side
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { auth: { flowType: 'pkce' } }
   )
 
   const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-  
-  if (!exchangeError && data.user) {
-    const user = data.user
-    const role = SUPER_ADMIN_EMAILS.includes(user.email ?? '') ? 'super_admin' : 'pending'
 
-    try {
-      await supabase.from('user_roles').upsert(
-        { user_id: user.id, role, email: user.email },
-        { onConflict: 'user_id', ignoreDuplicates: true }
-      )
-    } catch (_e) { /* non-fatal */ }
+  if (exchangeError || !data.user) {
+    return NextResponse.redirect(`${origin}/login?error=auth_failed`)
+  }
 
-    try {
-      await supabase.from('activity_log').insert({
-        action: 'user_login',
-        resource_type: 'auth',
-        description: `User login: ${user.email}`,
-      })
-    } catch (_e) { /* non-fatal */ }
+  const user = data.user
+  const isSuperAdmin = SUPER_ADMIN_EMAILS.includes(user.email ?? '')
+  const role = isSuperAdmin ? 'super_admin' : 'pending'
 
-    return NextResponse.redirect(`${origin}/pending`)
+  // Upsert role — non-fatal
+  try {
+    await supabase.from('user_roles').upsert(
+      { user_id: user.id, role, email: user.email },
+      { onConflict: 'user_id', ignoreDuplicates: false }
+    )
+  } catch (_e) {}
+
+  // Log activity — non-fatal
+  try {
+    await supabase.from('activity_log').insert({
+      action: 'user_login',
+      resource_type: 'auth',
+      description: `User login: ${user.email}`,
+    })
+  } catch (_e) {}
+
+  // Super admin goes straight to dashboard, others wait for approval
+  if (isSuperAdmin) {
+    return NextResponse.redirect(`${origin}/dashboard`)
+  }
+
+  // Check if existing role is already approved
+  const { data: roleData } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', user.id)
+    .single()
+
+  if (roleData && roleData.role !== 'pending') {
+    return NextResponse.redirect(`${origin}/dashboard`)
   }
 
   return NextResponse.redirect(`${origin}/pending`)
