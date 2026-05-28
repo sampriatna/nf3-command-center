@@ -1,26 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const PUBLIC_ROUTES = ["/login", "/pending", "/api/auth/callback", "/api/moka/auth", "/api/moka/callback", "/api/moka/sync", "/api/notify"];
-
 export async function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
-
-  if (
-    PUBLIC_ROUTES.some(r => pathname.startsWith(r)) ||
-    pathname.startsWith("/_next") ||
-    pathname.includes(".")
-  ) {
-    return NextResponse.next();
-  }
-
-  // Check for Supabase auth cookie
-  const cookieHeader = req.headers.get("cookie") ?? "";
-  const hasAuthCookie = cookieHeader.includes("sb-") && cookieHeader.includes("-auth-token");
-
-  if (!hasAuthCookie) {
-    return NextResponse.redirect(new URL("/login", req.url));
-  }
-
+  // Auth is handled by individual pages via Supabase client
+  // Middleware only handles static asset passthrough
   return NextResponse.next();
 }
 
