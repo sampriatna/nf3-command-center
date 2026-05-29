@@ -29,8 +29,8 @@ export default function AdminLoginPage() {
         return;
       }
 
-      // Login berhasil, redirect ke dashboard
-      router.push("/admin-dashboard");
+      // Login berhasil, redirect ke dashboard utama
+      router.push("/dashboard");
     } catch (err) {
       setError("Terjadi kesalahan. Coba lagi.");
       console.error("[v0] Login error:", err);
