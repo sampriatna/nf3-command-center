@@ -14,16 +14,36 @@
 
 @layer components {
   .sidebar {
-    @apply bg-slate-900 text-white fixed left-0 top-0 flex flex-col z-40 overflow-y-auto;
+    @apply bg-slate-900 text-white fixed left-0 top-0 flex flex-col z-40 overflow-y-auto transition-transform duration-300;
     width: 240px;
     height: 100vh;
   }
+  
+  .sidebar.mobile-hidden {
+    @apply -translate-x-full;
+  }
+  
   .main-content {
-    @apply min-h-screen bg-slate-50 p-6;
+    @apply min-h-screen bg-slate-50 p-4 md:p-6;
     margin-left: 240px;
   }
+  
+  @media (max-width: 768px) {
+    .main-content {
+      margin-left: 0;
+    }
+  }
+  
+  .sidebar-overlay {
+    @apply fixed inset-0 bg-black/50 z-30 md:hidden;
+  }
+  
+  .mobile-menu-btn {
+    @apply md:hidden flex items-center gap-2;
+  }
+  
   .kpi-card {
-    @apply bg-white rounded-xl shadow-sm border border-slate-100 p-5;
+    @apply bg-white rounded-xl shadow-sm border border-slate-100 p-4 md:p-5;
   }
   .nav-item {
     @apply flex items-center gap-3 px-4 py-2.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all text-sm font-medium cursor-pointer;
@@ -91,4 +111,4 @@
   .page-subtitle {
     @apply text-slate-500 text-sm mt-0.5;
   }
-    }
+}

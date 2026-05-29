@@ -35,6 +35,7 @@ export default function Sidebar() {
   const [userName, setUserName] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
@@ -92,75 +93,118 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="sidebar w-60 min-h-screen flex flex-col">
-      <div className="p-4 border-b border-gray-700">
-        <h1 className="text-white font-bold text-lg">NF3 Command Center</h1>
-        <p className="text-gray-400 text-xs mt-1">Operational Dashboard</p>
+    <>
+      {/* Mobile Menu Toggle */}
+      <div className="md:hidden fixed top-0 left-0 right-0 bg-slate-900 border-b border-slate-700 p-4 z-50 flex items-center justify-between">
+        <h1 className="text-white font-bold text-sm">NF3 CC</h1>
+        <button
+          onClick={() => setShowMobileMenu(!showMobileMenu)}
+          className="text-white p-1 hover:bg-slate-800 rounded-lg transition-colors"
+          aria-label="Toggle menu"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={showMobileMenu ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
+          </svg>
+        </button>
       </div>
 
-      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        {nav.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`nav-item relative ${pathname === item.href || pathname.startsWith(item.href + "/") ? "active" : ""}`}
+      {/* Sidebar Overlay (Mobile) */}
+      {showMobileMenu && (
+        <div
+          className="sidebar-overlay"
+          onClick={() => setShowMobileMenu(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside className={`sidebar ${showMobileMenu ? "" : "mobile-hidden"} md:translate-x-0 md:static`}>
+        <div className="p-4 border-b border-gray-700 hidden md:block">
+          <h1 className="text-white font-bold text-lg">NF3 Command Center</h1>
+          <p className="text-gray-400 text-xs mt-1">Operational Dashboard</p>
+        </div>
+
+        {/* Mobile header inside sidebar */}
+        <div className="p-4 border-b border-gray-700 md:hidden flex items-center justify-between">
+          <h1 className="text-white font-bold text-sm">Navigation</h1>
+          <button
+            onClick={() => setShowMobileMenu(false)}
+            className="text-gray-400 hover:text-white"
           >
-            <span className="text-lg">{item.icon}</span>
-            <span>{item.label}</span>
-            {item.href === "/employees" && pendingCount > 0 && (
-              <span className="ml-auto bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-                {pendingCount}
-              </span>
-            )}
-          </Link>
-        ))}
-      </nav>
+            ✕
+          </button>
+        </div>
 
-      <div className="p-3 border-t border-gray-700">
-        {userEmail ? (
-          <div className="relative">
-            <button
-              onClick={() => setShowUserMenu(v => !v)}
-              className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-gray-700 transition-colors text-left"
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+          {nav.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setShowMobileMenu(false)}
+              className={`nav-item relative ${pathname === item.href || pathname.startsWith(item.href + "/") ? "active bg-blue-600 text-white" : ""}`}
             >
-              <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                {(userName ?? userEmail).charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-white text-xs font-medium truncate">{userName ?? userEmail}</p>
-                {userRole && (
-                  <p className="text-gray-400 text-xs truncate">
-                    {ROLE_LABELS[userRole.role] ?? userRole.role} · {userRole.business_unit}
-                  </p>
-                )}
-              </div>
-              <span className="text-gray-400 text-xs">▾</span>
-            </button>
+              <span className="text-lg">{item.icon}</span>
+              <span className="truncate">{item.label}</span>
+              {item.href === "/employees" && pendingCount > 0 && (
+                <span className="ml-auto bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center flex-shrink-0">
+                  {pendingCount}
+                </span>
+              )}
+            </Link>
+          ))}
+        </nav>
 
-            {showUserMenu && (
-              <div className="absolute bottom-full left-0 right-0 mb-1 bg-gray-800 rounded-lg shadow-lg border border-gray-600 overflow-hidden">
-                <Link
-                  href="/settings?tab=profile"
-                  onClick={() => setShowUserMenu(false)}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
-                >
-                  <span>👤</span> Profil Saya
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-gray-700 transition-colors"
-                >
-                  <span>🚪</span> Keluar
-                </button>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="p-2">
-            <p className="text-gray-500 text-xs">© 2025 NF3 Authentic</p>
-          </div>
-        )}
-      </div>
-    </aside>
+        <div className="p-3 border-t border-gray-700">
+          {userEmail ? (
+            <div className="relative">
+              <button
+                onClick={() => setShowUserMenu(v => !v)}
+                className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-gray-700 transition-colors text-left"
+              >
+                <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                  {(userName ?? userEmail).charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-xs font-medium truncate">{userName ?? userEmail}</p>
+                  {userRole && (
+                    <p className="text-gray-400 text-xs truncate">
+                      {ROLE_LABELS[userRole.role] ?? userRole.role}
+                    </p>
+                  )}
+                </div>
+                <span className="text-gray-400 text-xs flex-shrink-0">▾</span>
+              </button>
+
+              {showUserMenu && (
+                <div className="absolute bottom-full left-0 right-0 mb-1 bg-gray-800 rounded-lg shadow-lg border border-gray-600 overflow-hidden">
+                  <Link
+                    href="/settings?tab=profile"
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      setShowMobileMenu(false);
+                    }}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+                  >
+                    <span>👤</span> Profil Saya
+                  </Link>
+                  <button
+                    onClick={() => {
+                      handleLogout();
+                      setShowMobileMenu(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-gray-700 transition-colors"
+                  >
+                    <span>🚪</span> Keluar
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="p-2">
+              <p className="text-gray-500 text-xs">© 2025 NF3 Authentic</p>
+            </div>
+          )}
+        </div>
+      </aside>
+    </>
   );
 }
