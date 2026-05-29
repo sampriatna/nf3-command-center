@@ -37,7 +37,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Insert default admin
 INSERT INTO public.admin_credentials (email, password_hash, name) 
-VALUES ('admin@nf3.co', crypt('admin123456', gen_salt('bf')), 'Admin')
+VALUES ('sampriatna@gmail.com', crypt('tukgumer123', gen_salt('bf')), 'Sampriatna Admin')
 ON CONFLICT (email) DO NOTHING;
 
 -- Create index
