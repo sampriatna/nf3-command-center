@@ -32,7 +32,6 @@ export async function POST(req: NextRequest) {
     const date = body?.date;
 
     const conn = await getMokaToken();
-
     if (!conn) {
       return NextResponse.json(
         { error: "Moka belum terhubung. Silakan hubungkan Moka di Settings > Integrasi." },
@@ -55,6 +54,13 @@ export async function POST(req: NextRequest) {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
+      // 404 means payment_reports endpoint not available for this OAuth scope
+      if (res.status === 404) {
+        return NextResponse.json(
+          { error: "Fitur sync transaksi dari Moka tidak tersedia untuk akun ini. Silakan input transaksi manual.", detail: err },
+          { status: 404 }
+        );
+      }
       return NextResponse.json(
         { error: "Gagal mengambil data Moka", detail: err },
         { status: res.status }
@@ -62,7 +68,8 @@ export async function POST(req: NextRequest) {
     }
 
     const mokaData = await res.json();
-    const payments: MokaPayment[] = mokaData?.data ?? [];
+    // v1 response: { data: { payment_reports: [...], total_pages: N }, meta: {...} }
+    const payments: MokaPayment[] = mokaData?.data?.payment_reports ?? mokaData?.data ?? [];
 
     if (payments.length === 0) {
       return NextResponse.json({
@@ -84,10 +91,7 @@ export async function POST(req: NextRequest) {
 
     const { data: inserted, error } = await supabase
       .from("finance_transactions")
-      .upsert(transactions, {
-        onConflict: "description",
-        ignoreDuplicates: true,
-      })
+      .upsert(transactions, { onConflict: "description", ignoreDuplicates: true })
       .select();
 
     if (error) {
