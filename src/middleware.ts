@@ -16,6 +16,9 @@ const PUBLIC_PATHS = [
 // Admin routes yang hanya butuh admin session (bukan Supabase auth)
 const ADMIN_PATHS = ["/admin-dashboard", "/api/admin/verify-session", "/api/admin/logout"];
 
+// Routes yang bisa diakses dengan admin session (tanpa Supabase auth)
+const ADMIN_ACCESS_PATHS = ["/dashboard"];
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
@@ -30,6 +33,12 @@ export async function middleware(req: NextRequest) {
     if (!adminSession) {
       return NextResponse.redirect(new URL("/admin-login", req.url));
     }
+    return NextResponse.next();
+  }
+
+  // Check admin session untuk routes yang bisa diakses admin (e.g., /dashboard)
+  const adminSession = req.cookies.get("admin_session")?.value;
+  if (adminSession && ADMIN_ACCESS_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }
 
