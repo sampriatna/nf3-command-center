@@ -2,7 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 // Routes yang bisa diakses tanpa login
-const PUBLIC_PATHS = ["/login", "/api/auth", "/pending", "/_next", "/favicon"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/api/auth",
+  "/pending",
+  "/admin-login",
+  "/api/admin/login",
+  "/_next",
+  "/favicon",
+];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
