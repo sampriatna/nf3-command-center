@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("sampriatna@gmail.com");
+  const [password, setPassword] = useState("tukgumer123");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -29,7 +29,6 @@ export default function AdminLoginPage() {
         return;
       }
 
-      // Login berhasil, redirect ke dashboard utama
       router.push("/dashboard");
     } catch (err) {
       setError("Terjadi kesalahan. Coba lagi.");
@@ -40,75 +39,85 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex items-center justify-center p-4 md:p-0">
-      <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 md:p-8 w-full max-w-md border border-white/20 shadow-2xl">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 md:w-16 md:h-16 bg-blue-600 rounded-full mb-4">
-            <svg className="w-6 h-6 md:w-8 md:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-          </div>
-          <h1 className="text-xl md:text-2xl font-bold text-white">Admin Portal</h1>
-          <p className="text-blue-200 mt-2 text-sm md:text-base">NF3 Command Center</p>
+    <div className="min-h-screen bg-white flex flex-col">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-100">
+        <div className="max-w-md mx-auto px-6 py-6">
+          <h2 className="text-lg font-bold text-gray-900">NF3 Command Center</h2>
+          <p className="text-sm text-gray-500 mt-1">Admin Portal</p>
         </div>
+      </header>
 
-        {error && (
-          <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 mb-4">
-            <p className="text-red-200 text-sm">{error}</p>
+      {/* Main */}
+      <main className="flex-1 flex items-center justify-center px-6 py-12">
+        <div className="w-full max-w-md">
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold text-gray-900">Login Admin</h1>
+            <p className="text-gray-600 text-sm mt-2">Masukkan kredensial Anda untuk mengakses portal admin</p>
           </div>
-        )}
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-white text-sm font-medium mb-2">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@nf3.co"
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-400 transition-colors text-sm"
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-700 text-sm font-medium">{error}</p>
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-900 mb-2">
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@nf3.co"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
+                disabled={loading}
+                required
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-900 mb-2">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
+                disabled={loading}
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
               disabled={loading}
-              required
-            />
+              className="w-full bg-blue-600 text-white font-semibold py-2.5 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
+            >
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                "Sign In"
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6 pt-6 border-t border-gray-100">
+            <p className="text-gray-500 text-xs text-center">
+              Admin access only. Unauthorized access is prohibited.
+            </p>
           </div>
-
-          <div>
-            <label className="block text-white text-sm font-medium mb-2">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-400 transition-colors text-sm"
-              disabled={loading}
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
-          >
-            {loading ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Signing in...
-              </>
-            ) : (
-              "Sign In"
-            )}
-          </button>
-        </form>
-
-        <p className="text-center text-blue-200/60 text-xs mt-6">
-          Admin access only. Unauthorized access is prohibited.
-        </p>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }
