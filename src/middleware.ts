@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 // Routes yang bisa diakses tanpa login
-const PUBLIC_PATHS = ["/login", "/api/auth", "/pending", "/_next", "/favicon"];
+const PUBLIC_PATHS = ["/login", "/api/auth", "/_next", "/favicon"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -37,6 +37,11 @@ export async function middleware(req: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // Allow /pending page for authenticated and unauthenticated users
+  if (pathname === "/pending") {
+    return NextResponse.next();
+  }
 
   if (!user) {
     const loginUrl = new URL("/login", req.url);
