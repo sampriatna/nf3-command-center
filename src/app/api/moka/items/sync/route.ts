@@ -63,12 +63,13 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const data = await res.json();
-      const items: MokaItem[] = data?.data ?? [];
+      const json = await res.json();
+      // v1 response: { data: { items: [...], total_pages: N }, meta: { code: 200 } }
+      const items: MokaItem[] = json?.data?.items ?? json?.data ?? [];
       allItems = [...allItems, ...items];
 
-      const meta = data?.meta ?? {};
-      hasMore = page < (meta.total_pages ?? 1);
+      const totalPages = json?.data?.total_pages ?? json?.meta?.total_pages ?? 1;
+      hasMore = page < totalPages;
       page++;
     }
 
