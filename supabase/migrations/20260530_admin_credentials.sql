@@ -35,6 +35,23 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Create function to insert admin with password hashing
+CREATE OR REPLACE FUNCTION insert_admin_with_password(
+  p_email text,
+  p_password text,
+  p_name text
+)
+RETURNS uuid AS $$
+DECLARE
+  v_id uuid;
+BEGIN
+  INSERT INTO public.admin_credentials (email, password_hash, name)
+  VALUES (p_email, crypt(p_password, gen_salt('bf')), p_name)
+  RETURNING id INTO v_id;
+  RETURN v_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- Insert default admin
 INSERT INTO public.admin_credentials (email, password_hash, name) 
 VALUES ('sampriatna@gmail.com', crypt('tukgumer123', gen_salt('bf')), 'Sampriatna Admin')

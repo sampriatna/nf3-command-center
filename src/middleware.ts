@@ -8,6 +8,7 @@ const PUBLIC_PATHS = [
   "/pending",
   "/admin-login",
   "/api/admin/login",
+  "/api/admin/update-creds",
   "/_next",
   "/favicon",
 ];
