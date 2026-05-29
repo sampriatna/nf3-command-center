@@ -13,11 +13,23 @@ const PUBLIC_PATHS = [
   "/favicon",
 ];
 
+// Admin routes yang hanya butuh admin session (bukan Supabase auth)
+const ADMIN_PATHS = ["/admin-dashboard", "/api/admin/verify-session", "/api/admin/logout"];
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Bypass public routes dan static assets
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+    return NextResponse.next();
+  }
+
+  // Check admin session untuk admin routes
+  if (ADMIN_PATHS.some((p) => pathname.startsWith(p))) {
+    const adminSession = req.cookies.get("admin_session")?.value;
+    if (!adminSession) {
+      return NextResponse.redirect(new URL("/admin-login", req.url));
+    }
     return NextResponse.next();
   }
 
