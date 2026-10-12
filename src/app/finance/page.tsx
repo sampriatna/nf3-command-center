@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Sidebar from "@/components/layout/Sidebar";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 
@@ -221,6 +222,17 @@ export default function FinancePage() {
         <div className="flex min-h-screen">
               <Sidebar />
               <main className="main-content flex-1">
+                      <div className="mb-5 rounded-lg border border-blue-200 bg-blue-50 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">Laporan Catatin (hanya baca)</p>
+                            <p className="mt-1 text-xs text-slate-600">Arus kas Nusa Food dan Nusa Fishing. Tidak mengubah Catatin maupun transaksi yang ada di halaman ini.</p>
+                          </div>
+                          <Link href="/finance/catatin" className="inline-flex rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white">
+                            Buka laporan Catatin →
+                          </Link>
+                        </div>
+                      </div>
                       <div className="mb-6 flex items-center justify-between">
                                 <div>
                                             <h1 className="page-title">Finance</h1>
