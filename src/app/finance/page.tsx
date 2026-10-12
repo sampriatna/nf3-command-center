@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Sidebar from "@/components/layout/Sidebar";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 
@@ -221,12 +222,29 @@ export default function FinancePage() {
         <div className="flex min-h-screen">
               <Sidebar />
               <main className="main-content flex-1">
-                      <div className="mb-6 flex items-center justify-between">
+                      <section className="mb-5 rounded-lg border border-blue-200 bg-blue-50 p-4 sm:p-5" aria-label="Catatin owner finance">
+                        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Sumber data: Catatin · khusus owner</p>
+                            <h2 className="mt-1 text-lg font-bold text-slate-900">Ringkasan keuangan per kategori</h2>
+                            <p className="mt-1 text-sm text-slate-600">
+                              Pengeluaran terbesar, pemasukan, perbandingan Nusa Food dan Nusa Fishing. Data Catatin hanya dibaca, tanpa mengubah transaksi.
+                            </p>
+                            <p className="mt-2 text-xs text-slate-500">
+                              Snapshot Catatin hanya akan muncul setelah ringkasan terenkripsi dipasang. Tidak ada koneksi langsung ke Catatin.
+                            </p>
+                          </div>
+                          <Link href="/finance/catatin" className="inline-flex w-full shrink-0 items-center justify-center rounded-md bg-slate-900 px-5 py-3 text-sm font-semibold text-white sm:w-auto">
+                            Buka ringkasan Catatin →
+                          </Link>
+                        </div>
+                      </section>
+                      <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
                                 <div>
                                             <h1 className="page-title">Finance</h1>
                                             <p className="page-subtitle">Laporan keuangan harian F&amp;B dan NF</p>
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap gap-2">
                                   {/* Moka = NF / Nusa Fishing */}
                                             <button
                                                             className="btn-secondary flex items-center gap-2"
@@ -255,7 +273,7 @@ export default function FinancePage() {
                                             <p className="text-2xl font-bold text-red-600 mt-1">{fmtCurrency(totalExpense)}</p>
                                 </div>
                                 <div className={"kpi-card border-l-4 " + (netProfit >= 0 ? "border-blue-400" : "border-red-400")}>
-                                            <p className="text-slate-500 text-xs font-medium">Net Profit</p>
+                                            <p className="text-slate-500 text-xs font-medium">Selisih Kas NF3</p>
                                             <p className={"text-2xl font-bold mt-1 " + (netProfit >= 0 ? "text-blue-600" : "text-red-600")}>{fmtCurrency(netProfit)}</p>
                                   {totalIncome > 0 && <p className="text-slate-400 text-xs mt-1">Margin: {((netProfit / totalIncome) * 100).toFixed(1)}%</p>}
                                 </div>
@@ -270,11 +288,11 @@ export default function FinancePage() {
                                   const buExpense = transactions.filter(t => t.business_unit === bu && t.type === "expense").reduce((s, t) => s + t.amount, 0);
                                   return (
                                                   <div key={bu} className="card p-4">
-                                                                  <div className="flex items-center justify-between mb-3">
+                                                                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                                                                                     <h3 className="font-semibold text-slate-800">{label}</h3>
                                                                                     <span className={"text-xs font-medium px-2 py-1 rounded-full " + badgeColor}>POS: {badge}</span>
                                                                   </div>
-                                                                  <div className="flex justify-between text-sm">
+                                                                  <div className="flex flex-wrap justify-between gap-3 text-sm">
                                                                                     <span className="text-green-600 font-medium">Pemasukan: {fmtCurrency(buIncome)}</span>
                                                                                     <span className="text-red-600 font-medium">Pengeluaran: {fmtCurrency(buExpense)}</span>
                                                                                     <span className="text-blue-600 font-bold">Net: {fmtCurrency(buIncome - buExpense)}</span>

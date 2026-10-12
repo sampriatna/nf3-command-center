@@ -26,5 +26,7 @@ jobs:
           node-version: "22"
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+      - name: Verify Catatin read-only guards
+        run: node scripts/verify-catatin-readonly.mjs
       - name: Check Next.js production build
         run: npm run build
