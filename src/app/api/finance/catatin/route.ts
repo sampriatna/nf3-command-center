@@ -89,6 +89,33 @@ export async function GET(request: NextRequest) {
     }, 503);
   }
 
+  // Reject privileged or misdirected credentials before opening any database connection.
+  // Supabase direct: nf3_catatin_cashflow_ro@db.<project-ref>.supabase.co.
+  // Supavisor pooler: nf3_catatin_cashflow_ro.<project-ref>@<region>.pooler.supabase.com.
+  let safeConnection = false;
+  try {
+    const address = new URL(readonlyDatabaseUrl);
+    const username = decodeURIComponent(address.username);
+    const projectRef = "odugkllatrpxjerrjjxo";
+    const hostname = address.hostname.toLowerCase();
+    const direct =
+      hostname === `db.${projectRef}.supabase.co` &&
+      username === "nf3_catatin_cashflow_ro";
+    const pooler =
+      hostname.endsWith(".pooler.supabase.com") &&
+      username === `nf3_catatin_cashflow_ro.${projectRef}`;
+    safeConnection =
+      ["postgres:", "postgresql:"].includes(address.protocol) && (direct || pooler);
+  } catch {
+    safeConnection = false;
+  }
+  if (!safeConnection) {
+    return json({
+      code: "UNSAFE_CATATIN_CREDENTIALS",
+      error: "Kredensial laporan tidak cocok dengan akun baca-terbatas Catatin.",
+    }, 503);
+  }
+
   const selectedDays = Number(new URL(request.url).searchParams.get("days") ?? "30");
   if (![7, 30, 90].includes(selectedDays)) {
     return json({ code: "BAD_RANGE", error: "Rentang hanya 7, 30, atau 90 hari." }, 400);
