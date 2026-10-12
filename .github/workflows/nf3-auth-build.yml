@@ -1,0 +1,30 @@
+name: NF3 auth build check
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "package.json"
+      - "tsconfig.json"
+      - ".github/workflows/nf3-auth-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-build-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Check Next.js production build
+        run: npm run build
