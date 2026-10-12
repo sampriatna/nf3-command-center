@@ -32,11 +32,16 @@ export default function Sidebar() {
   const [userName, setUserName] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     loadUser();
   }, []);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   async function loadUser() {
     const { data: { user } } = await supabase.auth.getUser();
@@ -89,7 +94,29 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="sidebar w-60 min-h-screen flex flex-col">
+    <>
+      <button
+        type="button"
+        className="fixed left-3 top-3 z-[60] flex h-11 w-11 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-900 shadow-sm lg:hidden"
+        onClick={() => setMobileOpen((value) => !value)}
+        aria-label={mobileOpen ? "Tutup menu" : "Buka menu"}
+        aria-expanded={mobileOpen}
+        aria-controls="nf3-main-navigation"
+      >
+        <span className="text-2xl leading-none" aria-hidden="true">{mobileOpen ? "×" : "☰"}</span>
+      </button>
+      {mobileOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-30 bg-slate-950/50 lg:hidden"
+          onClick={() => setMobileOpen(false)}
+          aria-label="Tutup navigasi"
+        />
+      )}
+      <aside
+        id="nf3-main-navigation"
+        className={`sidebar w-60 min-h-screen flex flex-col ${mobileOpen ? "sidebar-open" : ""}`}
+      >
       <div className="p-4 border-b border-gray-700">
         <h1 className="text-white font-bold text-lg">NF3 Command Center</h1>
         <p className="text-gray-400 text-xs mt-1">Operational Dashboard</p>
@@ -100,6 +127,7 @@ export default function Sidebar() {
           <Link
             key={item.href}
             href={item.href}
+            onClick={() => setMobileOpen(false)}
             className={`nav-item relative ${pathname === item.href || pathname.startsWith(item.href + "/") ? "active" : ""}`}
           >
             <span className="text-lg">{item.icon}</span>
@@ -159,5 +187,6 @@ export default function Sidebar() {
         )}
       </div>
     </aside>
+    </>
   );
 }
