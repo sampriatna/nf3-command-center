@@ -1,29 +1,16 @@
-// src/lib/supabase.ts
-// Shared Supabase client — gunakan ini di semua halaman
-import { createClient } from "@supabase/supabase-js";
+// Shared browser client. Cookies keep OAuth PKCE verifier and SSR session in sync.
+import { createBrowserClient } from "@supabase/ssr";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+export const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
-// Singleton client dengan session persistence
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    flowType: "pkce",
-  },
-});
-
-// Helper: cek apakah user sedang login
 export async function getUser() {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
+  const { data: { user }, error } = await supabase.auth.getUser();
+  return error ? null : user;
 }
 
-// Helper: logout
 export async function signOut() {
   await supabase.auth.signOut();
   window.location.href = "/login";

@@ -1,16 +1,16 @@
 "use client";
-import { useState } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  { auth: { flowType: "pkce" } }
-);
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const callbackError = params.get("error_description") ?? params.get("error");
+    if (callbackError) setError(callbackError);
+  }, []);
 
   async function handleGoogleLogin() {
     setLoading(true);
