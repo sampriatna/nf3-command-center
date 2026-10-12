@@ -14,6 +14,8 @@ assert.doesNotMatch(api, /(?:\bINSERT\s+INTO\b|\bUPDATE\s+public\.|\bDELETE\s+FR
 assert.doesNotMatch(api, /service_role|BYPASSRLS/i, "No bypassing permissions");
 assert.match(api, /NF3_FINANCE_OWNER_EMAILS/, "Server-side owner allowlist required");
 assert.match(api, /CATATIN_READONLY_DATABASE_URL/, "Dedicated database credentials required");
+assert.match(api, /UNSAFE_CATATIN_CREDENTIALS/, "Reject unsafe or privileged database credentials");
+assert.match(api, /nf3_catatin_cashflow_ro/, "Require the limited-read login role");
 assert.doesNotMatch(page, /CATATIN_READONLY_DATABASE_URL/, "DB credentials cannot appear in a client component");
 assert.match(finance, /href="\/finance\/catatin"/, "Finance should link to separate read-only page");
 
