@@ -16,12 +16,13 @@ Catatin merupakan sumber data utama dan tidak boleh diubah oleh integrasi ini.
 NF3_FINANCE_OWNER_USER_IDS: daftar UUID Supabase Auth user owner, dipisahkan dengan koma.
 NF3_FINANCE_OWNER_EMAILS: alternatif, daftar email owner yang terverifikasi, dipisahkan dengan koma.
 CATATIN_READONLY_DATABASE_URL: connection string Postgres khusus user SELECT-only dengan koneksi TLS.
+NF3_FINANCE_CATATIN_ENABLE_READONLY: harus berisi "1" untuk mengaktifkan koneksi; secara default TIDAK AKTIF.
 
 Wajib ada setidaknya salah satu owner allowlist serta URL database khusus baca. Supabase URL biasa bukan kredensial untuk membaca keuangan.
 
 Catatin memiliki policy RLS yang berpotensi terlalu luas jika role diberi SELECT langsung pada tabel. Karena itu endpoint hanya membaca private view nf3_finance_reporting.daily_cashflow_v1 yang berisi hasil agregasi dua bisnis; **tidak ada SELECT ke public.app_transactions oleh role pembaca**. View dijalankan sebagai pemilik postgres, tetapi hanya menghasilkan 6 kolom agregat yang ditentukan dalam definisinya. Tidak ada perubahan pada policy RLS existing. Pemeriksaan privilege menunjukkan role tidak bisa membaca atau mengubah tabel transaksi asli. Role NOLOGIN sampai konfigurasi server dan autentikasi dapat dilakukan secara aman.
 
-Tanpa env yang sesuai, API menjawab HTTP 503 dan menampilkan pesan jelas, bukan Rp0. Jika owner tidak diizinkan, jawab 403.
+**Keamanan tambahan**: sejumlah fungsi lama public.SECURITY DEFINER diwariskan lewat hak EXECUTE PUBLIC. Karena itu akun baru masih NOLOGIN, konfigurasi database tidak dipasang, dan switch enable tetap OFF. Jangan aktifkan login role sebelum risiko ini diaudit/diatasi dengan cara yang tidak merusak alur Catatin. Tanpa env/flag yang sesuai, API menjawab HTTP 503 dan menampilkan pesan jelas, bukan Rp0. Jika owner tidak diizinkan, jawab 403.
 
 ## Halaman dan metrik
 
