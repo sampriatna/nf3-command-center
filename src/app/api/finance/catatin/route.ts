@@ -81,6 +81,14 @@ export async function GET(request: NextRequest) {
     return json({ code: "FORBIDDEN", error: "Laporan Catatin khusus owner." }, 403);
   }
 
+  // Deliberate extra switch: a credential alone must never activate Catatin access.
+  if (process.env.NF3_FINANCE_CATATIN_ENABLE_READONLY !== "1") {
+    return json({
+      code: "CATATIN_INTEGRATION_DISABLED",
+      error: "Integrasi Catatin belum diaktifkan karena pemeriksaan keamanan masih berlangsung.",
+    }, 503);
+  }
+
   const readonlyDatabaseUrl = process.env.CATATIN_READONLY_DATABASE_URL;
   if (!readonlyDatabaseUrl) {
     return json({
