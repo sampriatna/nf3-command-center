@@ -133,34 +133,57 @@ export default function CatatinFinancePage() {
         <Link href="/finance" className="text-sm font-medium text-blue-700 hover:underline">
           ← Kembali ke Finance
         </Link>
-        <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Ringkasan Keuangan</h1>
-            <p className="mt-1 text-sm text-slate-500">Ringkasan kategori Catatin untuk owner, hanya baca dan tidak real-time.</p>
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Finance / Catatin</p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Ringkasan Keuangan</h1>
+            <p className="mt-1 text-sm leading-relaxed text-slate-500">Pengeluaran per kategori dan arus kas dua unit usaha. Khusus owner.</p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold tracking-wide text-slate-700">SNAPSHOT · READ ONLY</span>
-            <button type="button" disabled={loading} onClick={() => setRefreshKey((v) => v + 1)}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 disabled:opacity-50">Muat ulang tampilan</button>
+          <div className="flex shrink-0 items-center gap-2 self-start">
+            <span className="rounded border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-600">READ ONLY</span>
+            {report && (
+              <button type="button" disabled={loading} onClick={() => setRefreshKey((v) => v + 1)}
+                className="rounded border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 disabled:opacity-50">Periksa data terbaru</button>
+            )}
           </div>
-        </div>
-        <div className="mt-5 flex flex-wrap items-center gap-2">
-          {([7, 30, 90] as const).map((value) => (
-            <button key={value} type="button" onClick={() => setDays(value)}
-              className={days === value
-                ? "rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
-                : "rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600"}>
-              {value} hari
-            </button>
-          ))}
         </div>
 
-        {loading && <p className="mt-8 text-sm text-slate-600" role="status">Memuat snapshot ringkasan Catatin…</p>}
+        {loading && (
+          <div className="mt-8 rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600" role="status">
+            Memeriksa ketersediaan ringkasan Catatin…
+          </div>
+        )}
+
         {message && (
-          <div className="mt-7 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" role="alert">
-            <p className="font-semibold">Data belum dapat ditampilkan</p>
-            <p className="mt-1">{message}</p>
-            <p className="mt-2 text-xs">Catatin tidak diubah. Data hanya tersedia setelah snapshot agregat terenkripsi disiapkan di server NF3.</p>
+          <section className="mt-7 rounded-lg border border-slate-200 bg-white px-5 py-8 text-center sm:px-8" role="status">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-2xl" aria-hidden="true">📂</div>
+            <h2 className="mt-4 text-lg font-semibold text-slate-900">
+              {message.includes("Snapshot kategori Catatin belum tersedia") ? "Ringkasan Catatin belum diaktifkan" : "Ringkasan belum tersedia"}
+            </h2>
+            <p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed text-slate-600">
+              {message.includes("Snapshot kategori Catatin belum tersedia")
+                ? "Halaman sudah siap. Snapshot kategori masih perlu dipasang secara aman di server NF3 sebelum angka dapat ditampilkan."
+                : message}
+            </p>
+            <p className="mx-auto mt-3 max-w-md text-xs leading-relaxed text-slate-500">
+              Integrasi ini tidak mengubah transaksi, saldo, atau stok Catatin. Tidak ada angka nol yang dibuat-buat.
+            </p>
+            <Link href="/finance" className="mt-5 inline-flex items-center justify-center rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-800">
+              Kembali ke Finance
+            </Link>
+          </section>
+        )}
+
+        {report && (
+          <div className="mt-5 flex flex-wrap items-center gap-2" aria-label="Periode ringkasan">
+            {([7, 30, 90] as const).map((value) => (
+              <button key={value} type="button" onClick={() => setDays(value)}
+                className={days === value
+                  ? "rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                  : "rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600"}>
+                {value} hari
+              </button>
+            ))}
           </div>
         )}
 
