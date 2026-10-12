@@ -113,21 +113,13 @@ export async function GET(request: NextRequest) {
     await client.query("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY");
     began = true;
 
+    // Only the private aggregate view is granted to the reporting role.
+    // The role CANNOT SELECT from public.app_transactions.
     const result = await client.query<AggregateRow>(
-      `SELECT
-          business_id::text,
-          data->>'date' AS day,
-          data->>'type' AS flow_type,
-          COALESCE(NULLIF(data->>'outletCode', ''), 'Tidak ditentukan') AS outlet,
-          COUNT(*)::integer AS transaction_count,
-          SUM((data->>'amount')::numeric)::text AS total_rp
-        FROM public.app_transactions
-        WHERE business_id IN ($1::uuid, $2::uuid)
-          AND data->>'date' BETWEEN $3 AND $4
-          AND data->>'date' ~ '^20[0-9]{2}-[0-9]{2}-[0-9]{2}$'
-          AND data->>'amount' ~ '^[0-9]+(\\.[0-9]+)?$'
-          AND data->>'type' IN ('in', 'out', 'transfer')
-        GROUP BY business_id, day, flow_type, outlet
+      `SELECT business_id, day, flow_type, outlet, transaction_count, total_rp
+         FROM nf3_finance_reporting.daily_cashflow_v1
+        WHERE business_id IN ($1::text, $2::text)
+          AND day BETWEEN $3 AND $4
         ORDER BY day DESC, business_id, outlet`,
       [BUSINESSES[0].id, BUSINESSES[1].id, from, through]
     );
