@@ -2,16 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabase";
 
 const SUPER_ADMIN_EMAILS = ["sampriatna@gmail.com"];
 
-// detectSessionInUrl: true ensures Supabase client auto-exchanges ?code= param (PKCE)
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  { auth: { flowType: "pkce", detectSessionInUrl: true, persistSession: true } }
-);
+// OAuth code exchange happens in /api/auth/callback; the browser reads its session cookie.
 
 export default function PendingPage() {
   const router = useRouter();
