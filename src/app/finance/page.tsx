@@ -222,17 +222,23 @@ export default function FinancePage() {
         <div className="flex min-h-screen">
               <Sidebar />
               <main className="main-content flex-1">
-                      <div className="mb-5 rounded-lg border border-blue-200 bg-blue-50 p-4">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-900">Laporan Catatin (hanya baca)</p>
-                            <p className="mt-1 text-xs text-slate-600">Arus kas Nusa Food dan Nusa Fishing. Tidak mengubah Catatin maupun transaksi yang ada di halaman ini.</p>
+                      <section className="mb-5 rounded-lg border border-blue-200 bg-blue-50 p-4 sm:p-5" aria-label="Catatin owner finance">
+                        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Sumber data: Catatin · khusus owner</p>
+                            <h2 className="mt-1 text-lg font-bold text-slate-900">Ringkasan keuangan per kategori</h2>
+                            <p className="mt-1 text-sm text-slate-600">
+                              Pengeluaran terbesar, pemasukan, perbandingan Nusa Food dan Nusa Fishing. Data Catatin hanya dibaca, tanpa mengubah transaksi.
+                            </p>
+                            <p className="mt-2 text-xs text-slate-500">
+                              Koneksi data live belum diaktifkan sampai akun pembaca khusus dinyatakan aman.
+                            </p>
                           </div>
-                          <Link href="/finance/catatin" className="inline-flex rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white">
-                            Buka laporan Catatin →
+                          <Link href="/finance/catatin" className="inline-flex w-full shrink-0 items-center justify-center rounded-md bg-slate-900 px-5 py-3 text-sm font-semibold text-white sm:w-auto">
+                            Buka ringkasan Catatin →
                           </Link>
                         </div>
-                      </div>
+                      </section>
                       <div className="mb-6 flex items-center justify-between">
                                 <div>
                                             <h1 className="page-title">Finance</h1>
