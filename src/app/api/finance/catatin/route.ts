@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
     began = true;
 
     // Only the private aggregate view is granted to the reporting role.
-    // The role CANNOT SELECT from public.app_transactions.
+    // The reporting role has no access to the underlying Catatin records.
     const result = await client.query<AggregateRow>(
       `SELECT business_id, day, flow_type, outlet, transaction_count, total_rp
          FROM nf3_finance_reporting.daily_cashflow_v1
