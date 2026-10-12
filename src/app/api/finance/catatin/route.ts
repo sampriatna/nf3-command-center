@@ -18,6 +18,9 @@ type AggregateRow = {
   day: string;
   flow_type: FlowType;
   outlet: string;
+  category_name: string;
+  accounting_group: string;
+  is_mapped: boolean;
   transaction_count: number;
   total_rp: string;
 };
@@ -148,14 +151,14 @@ export async function GET(request: NextRequest) {
     await client.query("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY");
     began = true;
 
-    // Only the private aggregate view is granted to the reporting role.
-    // The reporting role has no access to the underlying Catatin records.
+    // Private daily CATEGORY aggregates only: no raw Catatin transactions.
     const result = await client.query<AggregateRow>(
-      `SELECT business_id, day, flow_type, outlet, transaction_count, total_rp
-         FROM nf3_finance_reporting.daily_cashflow_v1
+      `SELECT business_id, day, flow_type, outlet, category_name,
+              accounting_group, is_mapped, transaction_count, total_rp
+         FROM nf3_finance_reporting.category_cashflow_v1
         WHERE business_id IN ($1::text, $2::text)
           AND day BETWEEN $3 AND $4
-        ORDER BY day DESC, business_id, outlet`,
+        ORDER BY day DESC, business_id, category_name`,
       [BUSINESSES[0].id, BUSINESSES[1].id, from, through]
     );
 
@@ -163,44 +166,59 @@ export async function GET(request: NextRequest) {
     began = false;
 
     const byBusiness = BUSINESSES.map((business) => {
-      const records = result.rows.filter((row) => row.business_id === business.id);
-      const sum = (type: FlowType) => records
-        .filter((row) => row.flow_type === type)
-        .reduce((acc, row) => acc + Number(row.total_rp), 0);
-      const count = (type: FlowType) => records
-        .filter((row) => row.flow_type === type)
-        .reduce((acc, row) => acc + row.transaction_count, 0);
-
+      const rows = result.rows.filter((r) => r.business_id === business.id);
+      const sum = (type: FlowType) => rows.filter((r) => r.flow_type === type)
+        .reduce((total, r) => total + Number(r.total_rp), 0);
+      const count = (type: FlowType) => rows.filter((r) => r.flow_type === type)
+        .reduce((total, r) => total + r.transaction_count, 0);
       return {
-        businessId: business.id,
-        business: business.name,
-        cashIn: sum("in"),
-        cashOut: sum("out"),
+        businessId: business.id, business: business.name,
+        cashIn: sum("in"), cashOut: sum("out"),
         cashDifference: sum("in") - sum("out"),
         excludedTransfers: count("transfer"),
         recordedTransactions: count("in") + count("out"),
       };
     });
 
-    const daily = result.rows
-      .filter((row) => row.flow_type !== "transfer")
-      .map((row) => ({
-        business: BUSINESSES.find((item) => item.id === row.business_id)?.name ?? "Tidak dikenal",
-        date: row.day,
-        outlet: row.outlet,
-        type: row.flow_type,
-        count: row.transaction_count,
-        amount: Number(row.total_rp),
-      }));
+    type CategoryTotal = {
+      businessId: string; business: string; type: "in" | "out";
+      name: string; accountingGroup: string; mapped: boolean;
+      amount: number; count: number;
+    };
+    const categoryMap = new Map<string, CategoryTotal>();
+    const trendMap = new Map<string, { businessId: string; date: string; cashIn: number; cashOut: number }>();
+    for (const row of result.rows) {
+      if (row.flow_type === "transfer") continue;
+      const business = BUSINESSES.find((item) => item.id === row.business_id);
+      if (!business) continue;
+      const key = JSON.stringify([row.business_id, row.flow_type, row.category_name, row.accounting_group, row.is_mapped]);
+      let entry = categoryMap.get(key);
+      if (!entry) {
+        entry = { businessId: business.id, business: business.name,
+          type: row.flow_type, name: row.category_name,
+          accountingGroup: row.accounting_group, mapped: row.is_mapped, amount: 0, count: 0 };
+        categoryMap.set(key, entry);
+      }
+      entry.amount += Number(row.total_rp);
+      entry.count += row.transaction_count;
+
+      const trendKey = row.business_id + "|" + row.day;
+      let trend = trendMap.get(trendKey);
+      if (!trend) {
+        trend = { businessId: business.id, date: row.day, cashIn: 0, cashOut: 0 };
+        trendMap.set(trendKey, trend);
+      }
+      if (row.flow_type === "in") trend.cashIn += Number(row.total_rp);
+      else trend.cashOut += Number(row.total_rp);
+    }
 
     return json({
-      source: "Catatin · live read-only",
-      from,
-      through,
-      days: selectedDays,
+      source: "Catatin · ringkasan kategori read-only",
+      from, through, days: selectedDays,
       business: byBusiness,
-      daily,
-      disclaimer: "Arus kas tercatat, bukan omzet POS atau laba bersih. Transfer internal dikeluarkan.",
+      categories: [...categoryMap.values()],
+      trend: [...trendMap.values()].sort((a, b) => a.date.localeCompare(b.date)),
+      disclaimer: "Arus kas tercatat, bukan omzet POS atau laba bersih. Transfer internal dikecualikan. Kategori belum dipetakan ditampilkan terpisah.",
     });
   } catch {
     if (began) {
