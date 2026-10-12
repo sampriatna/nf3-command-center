@@ -26,6 +26,8 @@ type Category = {
 type Trend = { businessId: string; date: string; cashIn: number; cashOut: number };
 type Report = {
   source: string;
+  asOf: string;
+  capturedAt: string;
   from: string;
   through: string;
   days: number;
@@ -134,12 +136,12 @@ export default function CatatinFinancePage() {
         <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">Ringkasan Keuangan</h1>
-            <p className="mt-1 text-sm text-slate-500">Kategori pengeluaran dan sumber kas masuk dari Catatin.</p>
+            <p className="mt-1 text-sm text-slate-500">Ringkasan kategori Catatin untuk owner, hanya baca dan tidak real-time.</p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold tracking-wide text-slate-700">READ ONLY</span>
+            <span className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold tracking-wide text-slate-700">SNAPSHOT · READ ONLY</span>
             <button type="button" disabled={loading} onClick={() => setRefreshKey((v) => v + 1)}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 disabled:opacity-50">Muat ulang</button>
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 disabled:opacity-50">Muat ulang tampilan</button>
           </div>
         </div>
         <div className="mt-5 flex flex-wrap items-center gap-2">
@@ -153,12 +155,12 @@ export default function CatatinFinancePage() {
           ))}
         </div>
 
-        {loading && <p className="mt-8 text-sm text-slate-600" role="status">Memuat ringkasan kategori Catatin…</p>}
+        {loading && <p className="mt-8 text-sm text-slate-600" role="status">Memuat snapshot ringkasan Catatin…</p>}
         {message && (
           <div className="mt-7 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" role="alert">
             <p className="font-semibold">Data belum dapat ditampilkan</p>
             <p className="mt-1">{message}</p>
-            <p className="mt-2 text-xs">Catatin tidak diubah. Integrasi hanya aktif setelah kredensial khusus baca dan audit keamanan selesai.</p>
+            <p className="mt-2 text-xs">Catatin tidak diubah. Data hanya tersedia setelah snapshot agregat terenkripsi disiapkan di server NF3.</p>
           </div>
         )}
 
@@ -177,8 +179,12 @@ export default function CatatinFinancePage() {
               ))}
             </div>
             <p className="mt-4 text-xs text-slate-500">
-              Periode {dateLabel(report.from)} – {dateLabel(report.through)} · Data Catatin tercatat
+              Snapshot sampai {dateLabel(report.asOf)} · Periode {dateLabel(report.from)}–{dateLabel(report.through)} · Bukan live
             </p>
+            <div className="mt-3 rounded-md border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+              <span className="font-semibold text-slate-800">Data terakhir: {dateLabel(report.asOf)}</span>
+              <span className="ml-2 text-slate-500">Snapshot tidak berubah saat tombol muat ulang ditekan. Data baru membutuhkan pembaruan snapshot.</span>
+            </div>
             <section aria-label="Ringkasan arus kas" className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="rounded-lg border border-slate-200 bg-white p-4">
                 <p className="text-xs font-medium text-slate-500">Kas masuk</p>
