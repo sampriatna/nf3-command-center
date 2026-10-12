@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 
-type BusinessSummary = {
+type Business = {
   businessId: string;
   business: string;
   cashIn: number;
@@ -13,36 +13,58 @@ type BusinessSummary = {
   excludedTransfers: number;
   recordedTransactions: number;
 };
-type DailyRow = {
+type Category = {
+  businessId: string;
   business: string;
-  date: string;
-  outlet: string;
   type: "in" | "out";
-  count: number;
+  name: string;
+  accountingGroup: string;
+  mapped: boolean;
   amount: number;
+  count: number;
 };
+type Trend = { businessId: string; date: string; cashIn: number; cashOut: number };
 type Report = {
   source: string;
   from: string;
   through: string;
   days: number;
-  business: BusinessSummary[];
-  daily: DailyRow[];
+  business: Business[];
+  categories: Category[];
+  trend: Trend[];
   disclaimer: string;
 };
 
-const rupiah = (amount: number) =>
-  new Intl.NumberFormat("id-ID", {
-    style: "currency", currency: "IDR", maximumFractionDigits: 0,
-  }).format(amount);
-
-const dateLabel = (date: string) => {
-  const [year, month, day] = date.split("-");
-  return `${day}/${month}/${year}`;
+const money = (value: number) => new Intl.NumberFormat("id-ID", {
+  style: "currency", currency: "IDR", maximumFractionDigits: 0,
+}).format(value);
+const integer = (value: number) => new Intl.NumberFormat("id-ID").format(value);
+const dateLabel = (day: string) => {
+  const parts = day.split("-");
+  return parts.length === 3 ? parts[2] + "/" + parts[1] + "/" + parts[0] : day;
 };
+const percent = (part: number, total: number) => total > 0 ? Math.round(part / total * 100) : 0;
+
+function aggregateCategories(items: Category[], type: "in" | "out") {
+  const map = new Map<string, Category>();
+  for (const row of items.filter((item) => item.type === type)) {
+    const key = row.name.trim().toLocaleLowerCase("id-ID");
+    const found = map.get(key);
+    if (found) {
+      found.amount += row.amount;
+      found.count += row.count;
+      found.mapped = found.mapped && row.mapped;
+    } else {
+      map.set(key, { ...row });
+    }
+  }
+  return [...map.values()].sort((a, b) => b.amount - a.amount);
+}
 
 export default function CatatinFinancePage() {
   const [days, setDays] = useState<7 | 30 | 90>(30);
+  const [businessId, setBusinessId] = useState("all");
+  const [showAll, setShowAll] = useState(false);
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
@@ -55,20 +77,18 @@ export default function CatatinFinancePage() {
       setMessage(null);
       setReport(null);
       try {
-        const response = await fetch(`/api/finance/catatin?days=${days}`, {
+        const response = await fetch("/api/finance/catatin?days=" + days, {
           method: "GET",
           signal: controller.signal,
           cache: "no-store",
           credentials: "same-origin",
         });
         const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.error || "Gagal membaca laporan Catatin");
-        }
+        if (!response.ok) throw new Error(data.error || "Laporan Catatin belum tersedia.");
         if (!controller.signal.aborted) setReport(data as Report);
       } catch (error) {
         if (!controller.signal.aborted) {
-          setMessage(error instanceof Error ? error.message : "Gagal membaca laporan");
+          setMessage(error instanceof Error ? error.message : "Laporan belum dapat dibaca.");
         }
       } finally {
         if (!controller.signal.aborted) setLoading(false);
@@ -78,127 +98,218 @@ export default function CatatinFinancePage() {
     return () => controller.abort();
   }, [days, refreshKey]);
 
-  const totalIn = report?.business.reduce((sum, row) => sum + row.cashIn, 0) ?? 0;
-  const totalOut = report?.business.reduce((sum, row) => sum + row.cashOut, 0) ?? 0;
-  const totalTransfers = report?.business.reduce((sum, row) => sum + row.excludedTransfers, 0) ?? 0;
+  const matches = (id: string) => businessId === "all" || businessId === id;
+  const selected = report?.business.filter((item) => matches(item.businessId)) ?? [];
+  const selectedCategories = report?.categories.filter((item) => matches(item.businessId)) ?? [];
+  const totalIn = selected.reduce((sum, item) => sum + item.cashIn, 0);
+  const totalOut = selected.reduce((sum, item) => sum + item.cashOut, 0);
+  const transfers = selected.reduce((sum, item) => sum + item.excludedTransfers, 0);
+  const expense = aggregateCategories(selectedCategories, "out");
+  const income = aggregateCategories(selectedCategories, "in");
+  const unclassified = expense.filter((item) => !item.mapped);
+  const uncategorizedAmount = unclassified.reduce((sum, item) => sum + item.amount, 0);
+  const uncategorizedCount = unclassified.reduce((sum, item) => sum + item.count, 0);
+  const shownExpense = showAll ? expense : expense.slice(0, 8);
+  const shownIncome = showAll ? income : income.slice(0, 6);
+
+  const recentDays = [...new Set((report?.trend ?? []).map((item) => item.date))]
+    .sort().slice(-7);
+  const trend = recentDays.map((day) => {
+    const rows = (report?.trend ?? []).filter((item) => item.date === day && matches(item.businessId));
+    return {
+      date: day,
+      cashIn: rows.reduce((sum, item) => sum + item.cashIn, 0),
+      cashOut: rows.reduce((sum, item) => sum + item.cashOut, 0),
+    };
+  });
+  const maxTrend = Math.max(1, ...trend.flatMap((item) => [item.cashIn, item.cashOut]));
 
   return (
     <div className="flex min-h-screen bg-slate-50">
       <div className="hidden lg:block"><Sidebar /></div>
       <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10">
         <Link href="/finance" className="text-sm font-medium text-blue-700 hover:underline">
-          ← Finance Command Center
+          ← Kembali ke Finance
         </Link>
-        <div className="mt-5 flex flex-wrap items-start justify-between gap-4">
+        <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Catatin · Arus Kas</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Ringkasan Nusa Food dan Nusa Fishing langsung dari Catatin, hanya baca.
-            </p>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Ringkasan Keuangan</h1>
+            <p className="mt-1 text-sm text-slate-500">Kategori pengeluaran dan sumber kas masuk dari Catatin.</p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
-              READ ONLY
-            </span>
-            <button
-              type="button"
-              onClick={() => setRefreshKey((value) => value + 1)}
-              disabled={loading}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 disabled:opacity-50"
-            >
-              Muat ulang
-            </button>
+            <span className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold tracking-wide text-slate-700">READ ONLY</span>
+            <button type="button" disabled={loading} onClick={() => setRefreshKey((v) => v + 1)}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 disabled:opacity-50">Muat ulang</button>
           </div>
         </div>
-        <div className="mt-5 flex flex-wrap gap-2">
+        <div className="mt-5 flex flex-wrap items-center gap-2">
           {([7, 30, 90] as const).map((value) => (
-            <button
-              type="button"
-              key={value}
-              onClick={() => setDays(value)}
-              className={`rounded-md px-4 py-2 text-sm font-semibold ${days === value ? "bg-slate-900 text-white" : "border border-slate-200 bg-white text-slate-600"}`}
-            >
+            <button key={value} type="button" onClick={() => setDays(value)}
+              className={days === value
+                ? "rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                : "rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600"}>
               {value} hari
             </button>
           ))}
         </div>
 
-        {loading && <p className="mt-8 text-sm text-slate-500">Membaca ringkasan Catatin…</p>}
+        {loading && <p className="mt-8 text-sm text-slate-600" role="status">Memuat ringkasan kategori Catatin…</p>}
         {message && (
-          <div role="alert" className="mt-7 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            <strong>Data belum tersedia.</strong> {message}
-            <p className="mt-2">Catatin tidak diubah. Koneksi khusus baca perlu disiapkan di server Command Center.</p>
+          <div className="mt-7 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" role="alert">
+            <p className="font-semibold">Data belum dapat ditampilkan</p>
+            <p className="mt-1">{message}</p>
+            <p className="mt-2 text-xs">Catatin tidak diubah. Integrasi hanya aktif setelah kredensial khusus baca dan audit keamanan selesai.</p>
           </div>
         )}
 
         {report && (
           <>
-            <p className="mt-5 text-xs text-slate-500">
-              Periode {dateLabel(report.from)} – {dateLabel(report.through)} · Sumber: {report.source}
-            </p>
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="rounded-lg border border-slate-200 bg-white p-4">
-                <p className="text-sm text-slate-500">Kas masuk tercatat</p>
-                <p className="mt-2 text-xl font-bold text-green-700">{rupiah(totalIn)}</p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-white p-4">
-                <p className="text-sm text-slate-500">Kas keluar tercatat</p>
-                <p className="mt-2 text-xl font-bold text-red-700">{rupiah(totalOut)}</p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-white p-4">
-                <p className="text-sm text-slate-500">Selisih arus kas</p>
-                <p className="mt-2 text-xl font-bold text-slate-900">{rupiah(totalIn - totalOut)}</p>
-              </div>
-            </div>
-            <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button type="button" onClick={() => setBusinessId("all")}
+                className={businessId === "all" ? "rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white" : "rounded-md border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700"}>
+                Semua usaha
+              </button>
               {report.business.map((item) => (
-                <section key={item.businessId} className="rounded-lg border border-slate-200 bg-white p-4">
-                  <h2 className="font-semibold text-slate-900">{item.business}</h2>
-                  <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-4 text-sm">
-                    <div><p className="text-slate-500">Masuk</p><p className="font-semibold text-green-700">{rupiah(item.cashIn)}</p></div>
-                    <div><p className="text-slate-500">Keluar</p><p className="font-semibold text-red-700">{rupiah(item.cashOut)}</p></div>
-                    <div><p className="text-slate-500">Selisih</p><p className="font-semibold">{rupiah(item.cashDifference)}</p></div>
-                    <div><p className="text-slate-500">Catatan in/out</p><p className="font-semibold">{item.recordedTransactions.toLocaleString("id-ID")}</p></div>
-                  </div>
-                </section>
+                <button key={item.businessId} type="button" onClick={() => setBusinessId(item.businessId)}
+                  className={businessId === item.businessId ? "rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white" : "rounded-md border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700"}>
+                  {item.business}
+                </button>
               ))}
             </div>
-            <div className="mt-5 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
-              <p><strong>Penting:</strong> {report.disclaimer}</p>
-              <p className="mt-1">{totalTransfers.toLocaleString("id-ID")} transfer antar-dompet dikecualikan dari perhitungan.</p>
-            </div>
-            <section className="mt-6 overflow-hidden rounded-lg border border-slate-200 bg-white">
-              <h2 className="border-b border-slate-200 px-4 py-4 font-semibold text-slate-900">Rincian per hari dan outlet</h2>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[650px] text-sm">
-                  <thead className="bg-slate-50 text-left text-slate-500">
-                    <tr>
-                      <th className="px-4 py-3">Tanggal</th>
-                      <th className="px-4 py-3">Unit</th>
-                      <th className="px-4 py-3">Outlet</th>
-                      <th className="px-4 py-3">Arus</th>
-                      <th className="px-4 py-3 text-right">Transaksi</th>
-                      <th className="px-4 py-3 text-right">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.daily.length === 0 && (
-                      <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">Tidak ada transaksi yang dapat ditampilkan untuk periode ini.</td></tr>
-                    )}
-                    {report.daily.map((row, index) => (
-                      <tr key={`${row.business}-${row.date}-${row.outlet}-${row.type}-${index}`} className="border-t border-slate-100">
-                        <td className="whitespace-nowrap px-4 py-3">{dateLabel(row.date)}</td>
-                        <td className="px-4 py-3">{row.business}</td>
-                        <td className="px-4 py-3">{row.outlet}</td>
-                        <td className="px-4 py-3">{row.type === "in" ? "Masuk" : "Keluar"}</td>
-                        <td className="px-4 py-3 text-right">{row.count.toLocaleString("id-ID")}</td>
-                        <td className="whitespace-nowrap px-4 py-3 text-right font-semibold">{rupiah(row.amount)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <p className="mt-4 text-xs text-slate-500">
+              Periode {dateLabel(report.from)} – {dateLabel(report.through)} · Data Catatin tercatat
+            </p>
+            <section aria-label="Ringkasan arus kas" className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-slate-200 bg-white p-4">
+                <p className="text-xs font-medium text-slate-500">Kas masuk</p>
+                <p className="mt-2 text-xl font-bold text-emerald-700">{money(totalIn)}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-4">
+                <p className="text-xs font-medium text-slate-500">Kas keluar</p>
+                <p className="mt-2 text-xl font-bold text-rose-700">{money(totalOut)}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-4">
+                <p className="text-xs font-medium text-slate-500">Selisih kas tercatat</p>
+                <p className="mt-2 text-xl font-bold text-slate-900">{money(totalIn - totalOut)}</p>
+                <p className="mt-1 text-xs text-slate-400">Bukan laba bersih</p>
               </div>
             </section>
+
+            {uncategorizedCount > 0 && (
+              <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                <p className="font-semibold">Perlu ditinjau: kategori belum lengkap</p>
+                <p className="mt-1">
+                  {integer(uncategorizedCount)} catatan pengeluaran senilai {money(uncategorizedAmount)} belum dapat dipetakan ke nama kategori.
+                  Nilainya tetap termasuk kas keluar dan ditampilkan terpisah—tidak disembunyikan sebagai biaya lain.
+                </p>
+              </div>
+            )}
+
+            <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
+              <section className="rounded-lg border border-slate-200 bg-white p-4 sm:p-5">
+                <div className="flex items-baseline justify-between gap-3">
+                  <h2 className="text-base font-semibold text-slate-900">Pengeluaran per kategori</h2>
+                  <p className="text-xs text-slate-500">Proporsi dari kas keluar</p>
+                </div>
+                <div className="mt-4 space-y-4">
+                  {shownExpense.length === 0 && <p className="text-sm text-slate-500">Belum ada catatan pengeluaran.</p>}
+                  {shownExpense.map((item) => (
+                    <div key={item.name.toLowerCase()}>
+                      <div className="flex items-start justify-between gap-3 text-sm">
+                        <div className="min-w-0">
+                          <p className="font-medium text-slate-800">{item.name}</p>
+                          <p className="text-xs text-slate-400">{integer(item.count)} catatan</p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="font-semibold text-slate-900">{money(item.amount)}</p>
+                          <p className="text-xs text-slate-500">{percent(item.amount, totalOut)}%</p>
+                        </div>
+                      </div>
+                      <div className="mt-2 h-1.5 overflow-hidden rounded bg-slate-100">
+                        <div className="h-full rounded bg-slate-700" style={{ width: percent(item.amount, totalOut) + "%" }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="rounded-lg border border-slate-200 bg-white p-4 sm:p-5">
+                <div className="flex items-baseline justify-between gap-3">
+                  <h2 className="text-base font-semibold text-slate-900">Sumber kas masuk</h2>
+                  <p className="text-xs text-slate-500">Per kategori Catatin</p>
+                </div>
+                <div className="mt-4 space-y-4">
+                  {shownIncome.length === 0 && <p className="text-sm text-slate-500">Belum ada catatan kas masuk.</p>}
+                  {shownIncome.map((item) => (
+                    <div key={item.name.toLowerCase()}>
+                      <div className="flex items-start justify-between gap-3 text-sm">
+                        <p className="min-w-0 font-medium text-slate-800">{item.name}</p>
+                        <div className="shrink-0 text-right">
+                          <p className="font-semibold text-slate-900">{money(item.amount)}</p>
+                          <p className="text-xs text-slate-500">{percent(item.amount, totalIn)}%</p>
+                        </div>
+                      </div>
+                      <div className="mt-2 h-1.5 overflow-hidden rounded bg-slate-100">
+                        <div className="h-full rounded bg-emerald-600" style={{ width: percent(item.amount, totalIn) + "%" }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+            {(expense.length > 8 || income.length > 6) && (
+              <button type="button" onClick={() => setShowAll((value) => !value)}
+                className="mt-3 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700">
+                {showAll ? "Tampilkan yang utama" : "Lihat semua kategori"}
+              </button>
+            )}
+
+            {businessId === "all" && (
+              <section className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2" aria-label="Perbandingan unit usaha">
+                {report.business.map((item) => (
+                  <div key={item.businessId} className="rounded-lg border border-slate-200 bg-white p-4">
+                    <h2 className="text-sm font-semibold text-slate-900">{item.business}</h2>
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                      <div><p className="text-slate-500">Masuk</p><p className="mt-1 font-semibold text-emerald-700">{money(item.cashIn)}</p></div>
+                      <div><p className="text-slate-500">Keluar</p><p className="mt-1 font-semibold text-rose-700">{money(item.cashOut)}</p></div>
+                      <div><p className="text-slate-500">Selisih</p><p className="mt-1 font-semibold text-slate-900">{money(item.cashDifference)}</p></div>
+                    </div>
+                  </div>
+                ))}
+              </section>
+            )}
+
+            <section className="mt-5 rounded-lg border border-slate-200 bg-white p-4 sm:p-5">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-base font-semibold text-slate-900">Tren arus kas terbaru</h2>
+                <p className="text-xs text-slate-500">Maksimum 7 hari tercatat</p>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-600">
+                <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-emerald-600" /> Masuk</span>
+                <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-rose-500" /> Keluar</span>
+              </div>
+              <div className="mt-4 space-y-3">
+                {trend.length === 0 && <p className="text-sm text-slate-500">Belum ada tren pada periode ini.</p>}
+                {trend.map((item) => (
+                  <div key={item.date} className="grid grid-cols-[80px_minmax(0,1fr)] items-center gap-3">
+                    <p className="text-xs text-slate-500">{dateLabel(item.date).slice(0,5)}</p>
+                    <div className="space-y-1.5">
+                      <div className="h-2 rounded bg-slate-100">
+                        <div className="h-2 rounded bg-emerald-600" title={money(item.cashIn)} style={{ width: percent(item.cashIn, maxTrend) + "%" }} />
+                      </div>
+                      <div className="h-2 rounded bg-slate-100">
+                        <div className="h-2 rounded bg-rose-500" title={money(item.cashOut)} style={{ width: percent(item.cashOut, maxTrend) + "%" }} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+            <div className="mt-5 rounded-lg border border-slate-200 bg-white p-4 text-xs leading-relaxed text-slate-600">
+              <p><strong>Catatan owner:</strong> {report.disclaimer}</p>
+              <p className="mt-2">{integer(transfers)} transfer internal dikeluarkan dari total pemasukan/pengeluaran.</p>
+              <p className="mt-2">Kategori mengikuti catatan Catatin. Kelompok seperti aset atau keperluan pribadi tidak otomatis dianggap biaya laba-rugi. Laporan ini bukan pengganti rekonsiliasi POS atau laporan laba rugi.</p>
+            </div>
           </>
         )}
       </main>
