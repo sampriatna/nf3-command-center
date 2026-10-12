@@ -126,8 +126,8 @@ export default function CatatinFinancePage() {
 
   return (
     <div className="flex min-h-screen bg-slate-50">
-      <div className="hidden lg:block"><Sidebar /></div>
-      <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10">
+      <Sidebar />
+      <main className="min-w-0 flex-1 px-4 pb-6 pt-20 sm:px-6 lg:ml-60 lg:pt-6 lg:px-10">
         <Link href="/finance" className="text-sm font-medium text-blue-700 hover:underline">
           ← Kembali ke Finance
         </Link>
