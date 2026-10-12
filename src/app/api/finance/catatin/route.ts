@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { Client } from "pg";
 
 export const runtime = "nodejs";
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
         getAll() {
           return cookieStore.getAll();
         },
-        setAll(changes) {
+        setAll(changes: { name: string; value: string; options?: CookieOptions }[]) {
           changes.forEach(({ name, value, options }) => {
             cookieStore.set(name, value, options);
           });
