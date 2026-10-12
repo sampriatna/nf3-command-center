@@ -1,58 +1,65 @@
-# Catatin → NF3 Command Center Finance: READ ONLY
+# Finance Catatin untuk Owner — Snapshot Read-Only
 
-## Keamanan dan pembatasan
+## Status dan tujuan
 
-Catatin merupakan sumber data utama dan tidak boleh diubah oleh integrasi ini.
+NF3 Command Center membaca hanya RINGKASAN per kategori dari Catatin. **Tidak ada koneksi database Catatin di runtime NF3.** Tidak ada API key Catatin, service_role, password Postgres, SQL, ataupun tabel transaksi mentah yang diakses oleh website NF3.
 
-- Perubahan kode hanya di repo nf3-command-center. Pada database Catatin dibuat **schema baru nf3_finance_reporting**, view agregat **daily_cashflow_v1** serta **category_cashflow_v1**, serta role **nf3_catatin_cashflow_ro** yang masih NOLOGIN. **Tabel, policy RLS, transaksi, saldo, stok, dan Storage Catatin yang sebelumnya ada tidak diubah**.
-- Endpoint GET-only untuk laporan. Database reader memulai transaksi PostgreSQL READ ONLY, dan query hanya SELECT agregat.
-- Jangan memakai kredensial Catatin service_role, secret key, database postgres/superuser, atau akun yang memiliki BYPASSRLS.
-- Akun khusus **nf3_catatin_cashflow_ro** hanya memperoleh USAGE pada schema laporan dan SELECT pada dua view agregat; tidak mendapat hak langsung ke public.app_transactions. Role belum bisa login. Jangan izinkan UPDATE, INSERT, DELETE, atau akses data mentah.
-- Semua credential hanya ada di server Vercel, tidak ada NEXT_PUBLIC prefix dan tidak masuk GitHub.
-- API menolak akses jika allowlist owner belum disiapkan. Owner harus user yang terverifikasi secara server-side; jangan memakai user_metadata untuk izin.
+- Halaman owner: `/finance/catatin`, dibuka lewat CTA pada menu Finance.
+- Endpoint: `GET /api/finance/catatin?days=7|30|90`. Tidak ada POST, PUT, PATCH, DELETE.
+- Otorisasi: Supabase Auth NF3 yang diverifikasi di server, lalu allowlist `NF3_FINANCE_OWNER_EMAILS` atau `NF3_FINANCE_OWNER_USER_IDS`. Akses ditolak bila tidak terkonfigurasi.
+- Sumber runtime: hanya `CATATIN_FINANCE_SNAPSHOT_JSON` sebagai Vercel Environment Variable *encrypted* **server-only**, tanpa `NEXT_PUBLIC_`.
+- Jika snapshot belum ada / tidak valid: respons 503 dan pesan yang jelas. Jangan menampilkan angka `Rp 0` sebagai gantinya.
+- `Cache-Control: private, no-store` pada respons. UI hanya menerima agregat per kategori dan tren; tidak ada nama staf, nama pemasok, atau transaksi mentah.
+- Tanggal `asOf` wajib ditampilkan, dengan label **bukan real-time**. Tombol muat ulang UI tidak membuat snapshot baru.
 
-## Persiapan environment di server NF3 Command Center (belum diaktifkan)
+## Yang dihitung
 
-NF3_FINANCE_OWNER_USER_IDS: daftar UUID Supabase Auth user owner, dipisahkan dengan koma.
-NF3_FINANCE_OWNER_EMAILS: alternatif, daftar email owner yang terverifikasi, dipisahkan dengan koma.
-CATATIN_READONLY_DATABASE_URL: connection string Postgres khusus user SELECT-only dengan koneksi TLS.
-NF3_FINANCE_CATATIN_ENABLE_READONLY: harus berisi "1" untuk mengaktifkan koneksi; secara default TIDAK AKTIF.
+- Kas masuk dan kas keluar (bukan omzet POS).
+- Selisih arus kas (bukan laba bersih).
+- Peringkat kategori pengeluaran dan penerimaan.
+- Perbandingan Nusa Food dan NF Nusa Fishing.
+- Tren harian tujuh hari terakhir tercatat.
+- Jumlah transaksi transfer internal **tidak** dimasukkan ke total kas masuk/keluar.
+- Kategori yang tidak memiliki kecocokan master ditampilkan terpisah sebagai kategori belum dipetakan; tidak ditebak sebagai biaya lain.
+- Kategori `Pembelian Aset`, `Keperluan Owner`, `Modal` dan pencatatan internal bukan secara otomatis laba rugi operasional.
 
-Wajib ada setidaknya salah satu owner allowlist serta URL database khusus baca. Supabase URL biasa bukan kredensial untuk membaca keuangan.
+## Snapshot privat
 
-Catatin memiliki policy RLS yang berpotensi terlalu luas jika role diberi SELECT langsung pada tabel. Karena itu endpoint hanya membaca private view nf3_finance_reporting.daily_cashflow_v1 yang berisi hasil agregasi dua bisnis; **tidak ada SELECT ke public.app_transactions oleh role pembaca**. View dijalankan sebagai pemilik postgres, tetapi hanya menghasilkan 6 kolom agregat yang ditentukan dalam definisinya. Tidak ada perubahan pada policy RLS existing. Pemeriksaan privilege menunjukkan role tidak bisa membaca atau mengubah tabel transaksi asli. Role NOLOGIN sampai konfigurasi server dan autentikasi dapat dilakukan secara aman.
+Environment: `CATATIN_FINANCE_SNAPSHOT_JSON`
 
-**Keamanan tambahan**: sejumlah fungsi lama public.SECURITY DEFINER diwariskan lewat hak EXECUTE PUBLIC. Karena itu akun baru masih NOLOGIN, konfigurasi database tidak dipasang, dan switch enable tetap OFF. Jangan aktifkan login role sebelum risiko ini diaudit/diatasi dengan cara yang tidak merusak alur Catatin. Tanpa env/flag yang sesuai, API menjawab HTTP 503 dan menampilkan pesan jelas, bukan Rp0. Jika owner tidak diizinkan, jawab 403.
+Format JSON:
 
-## Halaman dan metrik
+```json
+{
+  "version": 1,
+  "asOf": "2026-10-12",
+  "capturedAt": "2026-10-13",
+  "source": "Catatin (snapshot)",
+  "reports": {
+    "7": { "from": "YYYY-MM-DD", "through": "2026-10-12", "days": 7, "business": [], "categories": [], "trend": [] },
+    "30": { "from": "YYYY-MM-DD", "through": "2026-10-12", "days": 30, "business": [], "categories": [], "trend": [] },
+    "90": { "from": "YYYY-MM-DD", "through": "2026-10-12", "days": 90, "business": [], "categories": [], "trend": [] }
+  }
+}
+```
 
-Halaman: /finance/catatin
-Endpoint: GET /api/finance/catatin?days=7|30|90
+Nilai contoh di atas **hanya struktur**, bukan data aktual. Semua angka harus diambil melalui SELECT dari laporan privat `nf3_finance_reporting.category_cashflow_v1`, diagregasi untuk 7/30/90 hari hingga tanggal snapshot, dan direkonsiliasi dengan `daily_cashflow_v1` sebelum dipasang. Saat memperbarui snapshot cukup mengganti environment variable (tidak ada tindakan yang menulis ke Catatin). Setelah perubahan environment pada Vercel, jalankan redeploy NF3 agar versi baru membaca data terbaru.
 
-Sumber di balik view: public.app_transactions (data JSONB), bukan tabel transactions yang kosong. **API baru hanya melakukan SELECT dari nf3_finance_reporting.category_cashflow_v1**; view dibatasi pada dua business_id dan menampilkan agregat per hari, outlet, tipe arus, dan jumlah.
+Akses Vercel ke snapshot hanya untuk operator berwenang. Jangan commit JSON finansial ke GitHub, jangan memakai `NEXT_PUBLIC_`, dan jangan mengirim file transaksi mentah ke aplikasi.
 
-Nusa Food business ID: e23ed572-234c-4995-acad-fa6bff7c58d2
-NF Nusa Fishing business ID: e37505c1-f5b8-480f-810e-6c1e8c288933
+## Catatin yang berubah sebelumnya
 
-Arus masuk = type in, arus keluar = type out. Type transfer dikecualikan dari arus masuk/keluar dan hanya dihitung jumlahnya. Tanggal dan angka yang tidak sesuai format tidak dihitung. Maksimal 90 hari, dengan agregasi per tanggal, unit, outlet dan arah arus.
+Pada Catatin sudah pernah dibuat schema privat `nf3_finance_reporting`, view `daily_cashflow_v1` dan `category_cashflow_v1`, serta role `nf3_catatin_cashflow_ro` yang tetap **NOLOGIN**. Keduanya hanya digunakan untuk membaca agregasi dan audit. Tidak ada perubahan terhadap data transaksi, stok, saldo, tabel lama, atau kebijakan RLS Catatin. Jangan mengaktifkan password atau memberikan login ke role itu, karena snapshot tidak membutuhkannya.
 
-Penting: SELISIH ARUS KAS BUKAN LABA BERSIH atau omzet POS. Beberapa catatan setor admin dan laporan harian mungkin mewakili kegiatan bisnis yang sama; perlukan rekonsiliasi sumber sebelum menyebut laba atau omzet.
+## Production checklist
 
-Data mentah dan identitas staf tidak dikirim ke browser. Respons hanya agregat dan tidak boleh di-cache.
+1. Build dan pemeriksaan read-only lulus.
+2. Pemeriksaan pada iPhone dan desktop terhadap menu, filter bisnis, KPI, kategori, tren, dan pesan error saat snapshot belum dipasang.
+3. Snapshot dipasang sebagai Vercel **encrypted** env dengan otorisasi owner server-side; environment production diverifikasi.
+4. Pastikan snapshot 7/30/90 hari mencocokkan total view Catatin. Tidak ada perpindahan transaksi asli.
+5. Uji user non-owner mendapatkan 403; login tidak ada mendapatkan 401, setelah allowlist tersedia.
+6. Pastikan angka diberi keterangan **snapshot** dan tanggal data; jangan klaim sinkronisasi live.
 
-## Validasi sebelum aktivasi
+## Rollback
 
-1. Build Next.js + TypeScript pada branch PR harus lulus.
-2. Test tanpa env: integrasi mati dengan aman, Catatin tetap tidak tersentuh.
-3. Test owner terverifikasi: akses halaman. Non-owner harus 403, belum login 401 setelah allowlist terpasang.
-4. Aktifkan login role khusus hanya setelah Vercel secret dapat disimpan secara aman. Pastikan login berhasil membaca view agregat, dan privilege role tetap tanpa SELECT/INSERT/UPDATE/DELETE pada tabel transaksi asli. Jangan uji mutasi pada Catatin production.
-5. Samakan agregat beberapa tanggal dengan laporan resmi Catatin, terutama transfer, setor admin dan transaksi purchasing.
-6. Jangan merge ke production sebelum izin readonly dan owner telah diverifikasi.
-
-Rollback aplikasi: hapus atau jangan set CATATIN_READONLY_DATABASE_URL di NF3. Modul terhenti aman. Untuk rollback schema tambahan (setelah memastikan tidak ada sesi pelaporan aktif), admin dapat DROP SCHEMA nf3_finance_reporting CASCADE dan DROP ROLE nf3_catatin_cashflow_ro. Jangan jalankan rollback tersebut kecuali memang diperlukan; tidak ada tabel transaksi existing yang termasuk dalam schema tambahan.
-
-## Ringkasan kategori untuk owner
-
-Halaman Finance Catatin menampilkan tiga KPI arus kas, rangking pengeluaran per nama kategori, kategori sumber penerimaan, perbandingan dua bisnis, dan tren kas 7 hari. Owner dapat memilih 7/30/90 hari dan satu unit usaha. Daftar transaksi mentah tidak dikirim ke browser. Category master dibaca dari public.categories serta app_state.categories tanpa perubahan atau pembaruan balik. Kategori tidak ditemukan tetap berada dalam 'Kategori belum dipetakan' atau 'Belum diberi kategori' dan diberi peringatan kualitas data.
-
-View category_cashflow_v1 baru ditambahkan melalui migration yang hanya membuat view dan memberikan SELECT ke role NOLOGIN. Query verifikasi tanggal 1 September–12 Oktober 2026: 0 mismatch antara category_cashflow_v1 dan daily_cashflow_v1 untuk jumlah transaksi dan nominal arus masuk/keluar/transfer. Tidak boleh dianggap omzet POS atau laba bersih; beberapa sumber setor kas dapat memerlukan rekonsiliasi.
+Cabut `CATATIN_FINANCE_SNAPSHOT_JSON` dari Vercel NF3 atau rollback deployment Command Center. Catatin sendiri tidak terpengaruh.
