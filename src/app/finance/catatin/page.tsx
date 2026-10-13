@@ -13,6 +13,9 @@ type Business = {
   cashDifference: number;
   excludedTransfers: number;
   recordedTransactions: number;
+  excludedAdjustmentsIn: number;
+  excludedAdjustmentsOut: number;
+  excludedAdjustmentCount: number;
 };
 type Category = {
   businessId: string;
@@ -109,6 +112,9 @@ export default function CatatinFinancePage() {
   const totalIn = selected.reduce((sum, item) => sum + item.cashIn, 0);
   const totalOut = selected.reduce((sum, item) => sum + item.cashOut, 0);
   const transfers = selected.reduce((sum, item) => sum + item.excludedTransfers, 0);
+  const adjustedIn = selected.reduce((sum, item) => sum + item.excludedAdjustmentsIn, 0);
+  const adjustedOut = selected.reduce((sum, item) => sum + item.excludedAdjustmentsOut, 0);
+  const adjustedCount = selected.reduce((sum, item) => sum + item.excludedAdjustmentCount, 0);
   const expense = aggregateCategories(selectedCategories, "out");
   const income = aggregateCategories(selectedCategories, "in");
   const unclassified = expense.filter((item) => !item.mapped);
@@ -217,20 +223,29 @@ export default function CatatinFinancePage() {
             </div>
             <section aria-label="Ringkasan arus kas" className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="rounded-lg border border-slate-200 bg-white p-4">
-                <p className="text-xs font-medium text-slate-500">Kas masuk</p>
+                <p className="text-xs font-medium text-slate-500">Kas masuk (tanpa koreksi)</p>
                 <p className="mt-2 text-xl font-bold text-emerald-700">{money(totalIn)}</p>
               </div>
               <div className="rounded-lg border border-slate-200 bg-white p-4">
-                <p className="text-xs font-medium text-slate-500">Kas keluar</p>
+                <p className="text-xs font-medium text-slate-500">Kas keluar (tanpa koreksi)</p>
                 <p className="mt-2 text-xl font-bold text-rose-700">{money(totalOut)}</p>
               </div>
               <div className="rounded-lg border border-slate-200 bg-white p-4">
-                <p className="text-xs font-medium text-slate-500">Selisih kas tercatat</p>
+                <p className="text-xs font-medium text-slate-500">Selisih kas tanpa koreksi</p>
                 <p className="mt-2 text-xl font-bold text-slate-900">{money(totalIn - totalOut)}</p>
                 <p className="mt-1 text-xs text-slate-400">Bukan laba bersih</p>
               </div>
             </section>
 
+            {(adjustedCount > 0 || transfers > 0) && (
+              <div className="mt-4 rounded-md border border-slate-200 bg-white p-4 text-sm text-slate-700">
+                <p className="font-semibold text-slate-900">Pindah dompet dan koreksi saldo tidak dihitung</p>
+                <p className="mt-1">{integer(transfers)} transfer internal dikecualikan.
+                  {adjustedCount > 0 ? ` ${integer(adjustedCount)} koreksi saldo (${money(adjustedOut)} keluar; ${money(adjustedIn)} masuk) juga dikeluarkan dari angka utama.` : ""}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">Angka ini tetap tercatat di Catatin untuk audit. Selisih kas bukan laba bersih.</p>
+              </div>
+            )}
             {uncategorizedCount > 0 && (
               <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
                 <p className="font-semibold">Perlu ditinjau: kategori belum lengkap</p>
@@ -343,7 +358,8 @@ export default function CatatinFinancePage() {
             </section>
             <div className="mt-5 rounded-lg border border-slate-200 bg-white p-4 text-xs leading-relaxed text-slate-600">
               <p><strong>Catatan owner:</strong> {report.disclaimer}</p>
-              <p className="mt-2">{integer(transfers)} transfer internal dikeluarkan dari total pemasukan/pengeluaran.</p>
+              <p className="mt-2">{integer(transfers)} transaksi transfer antar-dompet tidak dihitung sebagai pemasukan atau pengeluaran usaha.</p>
+              <p className="mt-2">{integer(adjustedCount)} penyesuaian saldo dikeluarkan dari angka utama: {money(adjustedOut)} koreksi pengeluaran dan {money(adjustedIn)} koreksi pemasukan. Ini bukan transaksi usaha dan tidak dihapus dari Catatin.</p>
               <p className="mt-2">Kategori mengikuti catatan Catatin. Kelompok seperti aset atau keperluan pribadi tidak otomatis dianggap biaya laba-rugi. Laporan ini bukan pengganti rekonsiliasi POS atau laporan laba rugi.</p>
             </div>
           </>
