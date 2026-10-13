@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 
@@ -64,6 +65,8 @@ function aggregateCategories(items: Category[], type: "in" | "out") {
 }
 
 export default function CatatinFinancePage() {
+  const pathname = usePathname();
+  const isLegacyRoute = pathname === "/finance/catatin";
   const [days, setDays] = useState<7 | 30 | 90>(30);
   const [businessId, setBusinessId] = useState("all");
   const [showAll, setShowAll] = useState(false);
@@ -130,14 +133,16 @@ export default function CatatinFinancePage() {
     <div className="flex min-h-screen bg-slate-50">
       <Sidebar />
       <main className="min-w-0 flex-1 px-4 pb-6 pt-20 sm:px-6 lg:ml-60 lg:pt-6 lg:px-10">
-        <Link href="/finance" className="text-sm font-medium text-blue-700 hover:underline">
-          ← Kembali ke Finance
-        </Link>
+        {isLegacyRoute && (
+          <Link href="/finance" className="text-sm font-medium text-blue-700 hover:underline">
+            ← Kembali ke Finance
+          </Link>
+        )}
         <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Finance / Catatin</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">FINANCE · SUMBER: CATATIN</p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Ringkasan Keuangan</h1>
-            <p className="mt-1 text-sm leading-relaxed text-slate-500">Pengeluaran per kategori dan arus kas dua unit usaha. Khusus owner.</p>
+            <p className="mt-1 text-sm leading-relaxed text-slate-500">Ringkasan pengeluaran dan pemasukan Nusa Food serta Nusa Fishing. Khusus owner · hanya baca.</p>
           </div>
           <div className="flex shrink-0 items-center gap-2 self-start">
             <span className="rounded border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-600">READ ONLY</span>
@@ -168,9 +173,11 @@ export default function CatatinFinancePage() {
             <p className="mx-auto mt-3 max-w-md text-xs leading-relaxed text-slate-500">
               Integrasi ini tidak mengubah transaksi, saldo, atau stok Catatin. Tidak ada angka nol yang dibuat-buat.
             </p>
-            <Link href="/finance" className="mt-5 inline-flex items-center justify-center rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-800">
-              Kembali ke Finance
-            </Link>
+            {isLegacyRoute && (
+              <Link href="/finance" className="mt-5 inline-flex items-center justify-center rounded-md border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-800">
+                Kembali ke Finance
+              </Link>
+            )}
           </section>
         )}
 
