@@ -17,6 +17,8 @@ type Business = {
   businessId: string; business: string;
   cashIn: number; cashOut: number; cashDifference: number;
   excludedTransfers: number; recordedTransactions: number;
+  excludedAdjustmentsIn: number; excludedAdjustmentsOut: number;
+  excludedAdjustmentCount: number;
 };
 type Category = {
   businessId: string; business: string; type: "in" | "out";
@@ -50,7 +52,8 @@ function validPeriod(p: Period, days: number, asOf: string) {
   if (!Array.isArray(p.business) || !Array.isArray(p.categories) || !Array.isArray(p.trend)) return false;
   if (!p.business.every((r) =>
     BUSINESSES.includes(r.businessId as typeof BUSINESSES[number]) &&
-    ["cashIn", "cashOut", "cashDifference", "excludedTransfers", "recordedTransactions"]
+    ["cashIn", "cashOut", "cashDifference", "excludedTransfers", "recordedTransactions",
+      "excludedAdjustmentsIn", "excludedAdjustmentsOut", "excludedAdjustmentCount"]
       .every((field) => Number.isFinite(r[field as keyof Business]))
   )) return false;
   if (!p.categories.every((r) =>
@@ -136,7 +139,7 @@ export async function GET(request: NextRequest) {
       business: result.business,
       categories: result.categories,
       trend: result.trend,
-      disclaimer: "Snapshot arus kas Catatin, bukan laporan live, omzet POS, atau laba bersih. Transfer dikecualikan. Kategori yang belum dipetakan tetap dilaporkan terpisah.",
+      disclaimer: "Ringkasan kas tercatat tanpa transfer antar-dompet dan koreksi Sesuaikan Saldo. Bukan laporan live, omzet POS, atau laba bersih. Kategori belum dipetakan tetap ditampilkan.",
     });
   } catch {
     return json({
